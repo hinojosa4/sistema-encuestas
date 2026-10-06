@@ -1,0 +1,10 @@
+@import "tailwindcss";
+
+@theme {
+  --color-umss-azul: #003770;
+  --color-umss-rojo: #E30613;
+  --color-umss-blanco: #FFFFFF;
+  --color-umss-azul-claro: #E6EEF7;
+  --color-umss-rojo-claro: #FDE8E9;
+  --color-umss-gris-fondo: #F8FAFC;
+}
