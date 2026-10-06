@@ -115,36 +115,36 @@ export default function UploadPage() {
     };
 
     return (
-        <div className="max-w-6xl mx-auto py-10 px-4">
-            <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 md:p-8">
+        <div className="max-w-6xl mx-auto py-6 sm:py-10 px-3 sm:px-6 lg:px-8">
+            <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 sm:p-6 md:p-8">
 
                 {/* Encabezado */}
-                <div className="border-b border-slate-100 pb-5 mb-6">
-                    <h2 className="text-2xl font-bold text-umss-azul flex items-center gap-2">
-                        <FileSpreadsheet className="text-umss-rojo" />
-                        Carga y Procesamiento de Encuestas
+                <div className="border-b border-slate-100 pb-4 sm:pb-5 mb-5 sm:mb-6">
+                    <h2 className="text-xl sm:text-2xl font-bold text-umss-azul flex flex-wrap items-center gap-2">
+                        <FileSpreadsheet className="text-umss-rojo h-6 w-6 flex-shrink-0" />
+                        <span>Carga y Procesamiento de Encuestas</span>
                     </h2>
-                    <p className="text-sm text-slate-600 mt-1">
+                    <p className="text-xs sm:text-sm text-slate-600 mt-1 leading-relaxed">
                         Sube el archivo Excel o CSV exportado desde Microsoft Forms / Google Forms para almacenarlo en la base de datos y actualizar las métricas.
                     </p>
                 </div>
 
                 {/* Selección de tipo de encuesta */}
-                <div className="mb-6">
-                    <label className="block text-sm font-semibold text-slate-700 mb-2">
+                <div className="mb-5 sm:mb-6">
+                    <label className="block text-xs sm:text-sm font-semibold text-slate-700 mb-2">
                         1. Selecciona el tipo de encuesta que vas a cargar:
                     </label>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                         <button
                             type="button"
                             onClick={() => setTargetTable('encuesta_titulados')}
-                            className={`p-4 rounded-lg border text-left font-medium transition-all ${targetTable === 'encuesta_titulados'
-                                    ? 'border-umss-azul bg-umss-azulClaro text-umss-azul font-bold ring-2 ring-umss-azul/20'
+                            className={`p-3.5 sm:p-4 rounded-lg border text-left font-medium transition-all text-xs sm:text-sm ${targetTable === 'encuesta_titulados'
+                                    ? 'border-umss-azul bg-blue-50/70 text-umss-azul font-bold ring-2 ring-umss-azul/20'
                                     : 'border-slate-200 hover:bg-slate-50 text-slate-700'
                                 }`}
                         >
                             🎓 Encuesta a Titulados (Graduados)
-                            <span className="block text-xs font-normal text-slate-500 mt-1">
+                            <span className="block text-[11px] sm:text-xs font-normal text-slate-500 mt-1">
                                 Datos de egreso, formación continua, empleo y asignaturas
                             </span>
                         </button>
@@ -152,13 +152,13 @@ export default function UploadPage() {
                         <button
                             type="button"
                             onClick={() => setTargetTable('encuesta_empleadores')}
-                            className={`p-4 rounded-lg border text-left font-medium transition-all ${targetTable === 'encuesta_empleadores'
-                                    ? 'border-umss-azul bg-umss-azulClaro text-umss-azul font-bold ring-2 ring-umss-azul/20'
+                            className={`p-3.5 sm:p-4 rounded-lg border text-left font-medium transition-all text-xs sm:text-sm ${targetTable === 'encuesta_empleadores'
+                                    ? 'border-umss-azul bg-blue-50/70 text-umss-azul font-bold ring-2 ring-umss-azul/20'
                                     : 'border-slate-200 hover:bg-slate-50 text-slate-700'
                                 }`}
                         >
                             🏢 Encuesta a Empleadores
-                            <span className="block text-xs font-normal text-slate-500 mt-1">
+                            <span className="block text-[11px] sm:text-xs font-normal text-slate-500 mt-1">
                                 Datos de empresas públicas/privadas, competencias y demanda
                             </span>
                         </button>
@@ -166,22 +166,22 @@ export default function UploadPage() {
                 </div>
 
                 {/* Zona de subida de archivo */}
-                <div className="mb-6">
-                    <label className="block text-sm font-semibold text-slate-700 mb-2">
+                <div className="mb-5 sm:mb-6">
+                    <label className="block text-xs sm:text-sm font-semibold text-slate-700 mb-2">
                         2. Selecciona o arrastra el archivo (.xlsx, .xls o .csv):
                     </label>
-                    <div className="border-2 border-dashed border-slate-300 hover:border-umss-azul rounded-xl p-8 text-center bg-slate-50/50 cursor-pointer relative transition-colors">
+                    <div className="border-2 border-dashed border-slate-300 hover:border-umss-azul rounded-xl p-5 sm:p-8 md:p-10 text-center bg-slate-50/50 cursor-pointer relative transition-colors">
                         <input
                             type="file"
                             accept=".xlsx, .xls, .csv"
                             onChange={handleFileUpload}
                             className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                         />
-                        <Upload className="mx-auto h-12 w-12 text-slate-400 mb-3" />
-                        <p className="text-sm font-semibold text-slate-700">
+                        <Upload className="mx-auto h-10 w-10 sm:h-12 sm:w-12 text-slate-400 mb-2 sm:mb-3" />
+                        <p className="text-xs sm:text-sm font-semibold text-slate-700 px-2 break-all sm:break-normal">
                             {fileName ? `Archivo seleccionado: ${fileName}` : 'Haz clic aquí o arrastra tu archivo Excel / CSV'}
                         </p>
-                        <p className="text-xs text-slate-500 mt-1">
+                        <p className="text-[11px] sm:text-xs text-slate-500 mt-1 px-2">
                             Compatible con Microsoft Excel (.xlsx), CSV delimitado por coma o punto y coma
                         </p>
                     </div>
@@ -190,7 +190,7 @@ export default function UploadPage() {
                 {/* Notificaciones */}
                 {message && (
                     <div
-                        className={`p-4 rounded-lg mb-6 flex items-start gap-3 ${message.type === 'success'
+                        className={`p-3.5 sm:p-4 rounded-lg mb-5 sm:mb-6 flex items-start gap-2.5 sm:gap-3 text-xs sm:text-sm ${message.type === 'success'
                                 ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
                                 : 'bg-red-50 text-red-800 border border-red-200'
                             }`}
@@ -200,47 +200,47 @@ export default function UploadPage() {
                         ) : (
                             <AlertCircle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
                         )}
-                        <p className="text-sm">{message.text}</p>
+                        <p className="leading-relaxed">{message.text}</p>
                     </div>
                 )}
 
                 {/* Vista previa de datos */}
                 {dataPreview.length > 0 && (
-                    <div className="mt-8 border-t border-slate-100 pt-6">
-                        <div className="flex items-center justify-between mb-4">
+                    <div className="mt-6 sm:mt-8 border-t border-slate-100 pt-5 sm:pt-6">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
                             <div>
-                                <h3 className="font-bold text-slate-800">
+                                <h3 className="font-bold text-slate-800 text-sm sm:text-base">
                                     Vista Previa de Datos ({dataPreview.length} filas detectadas)
                                 </h3>
-                                <p className="text-xs text-slate-500">
+                                <p className="text-[11px] sm:text-xs text-slate-500">
                                     Revisa las primeras 5 filas antes de guardar en Supabase.
                                 </p>
                             </div>
                             <button
                                 onClick={handleSaveToDatabase}
                                 disabled={loading}
-                                className="bg-umss-azul hover:bg-blue-900 text-white font-medium px-5 py-2.5 rounded-lg shadow transition-colors flex items-center gap-2 disabled:opacity-50"
+                                className="w-full sm:w-auto bg-umss-azul hover:bg-blue-900 text-white font-medium px-4 sm:px-5 py-2.5 rounded-lg shadow transition-colors flex items-center justify-center gap-2 text-xs sm:text-sm disabled:opacity-50"
                             >
                                 {loading ? (
                                     <>
                                         <Loader2 className="h-4 w-4 animate-spin" />
-                                        Guardando...
+                                        <span>Guardando...</span>
                                     </>
                                 ) : (
                                     <>
                                         <Upload className="h-4 w-4" />
-                                        Confirmar y Guardar en Base de Datos
+                                        <span>Confirmar y Guardar en Base de Datos</span>
                                     </>
                                 )}
                             </button>
                         </div>
 
-                        <div className="overflow-x-auto max-h-72 border border-slate-200 rounded-lg">
-                            <table className="min-w-full divide-y divide-slate-200 text-xs text-left">
+                        <div className="overflow-x-auto custom-scrollbar max-h-72 border border-slate-200 rounded-lg w-full">
+                            <table className="min-w-full divide-y divide-slate-200 text-[11px] sm:text-xs text-left">
                                 <thead className="bg-slate-100 sticky top-0 font-semibold text-slate-700">
                                     <tr>
                                         {headers.map((h, idx) => (
-                                            <th key={idx} className="px-3 py-2 border-r border-slate-200 whitespace-nowrap">
+                                            <th key={idx} className="px-2.5 sm:px-3 py-2 border-r border-slate-200 whitespace-nowrap">
                                                 {h}
                                             </th>
                                         ))}
@@ -250,7 +250,7 @@ export default function UploadPage() {
                                     {dataPreview.slice(0, 5).map((row, rIdx) => (
                                         <tr key={rIdx} className="hover:bg-slate-50">
                                             {headers.map((h, cIdx) => (
-                                                <td key={cIdx} className="px-3 py-2 border-r border-slate-100 whitespace-nowrap text-slate-600">
+                                                <td key={cIdx} className="px-2.5 sm:px-3 py-2 border-r border-slate-100 whitespace-nowrap text-slate-600">
                                                     {String(row[h] ?? '')}
                                                 </td>
                                             ))}
