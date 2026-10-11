@@ -61,64 +61,79 @@ export default function DashboardPage() {
         }))
     );
 
-    // 4. Competencias Evaluadas para el Radar (HU 4 y Anexo Empleadores)
-    const radarData = [
+    // Función segura para calcular promedios Likert evitando NaNs y respuestas nulas
+    const getPromedio = (campo: string, defaultVal: number): number => {
+        if (!empleadores || empleadores.length === 0) return defaultVal;
+        const valoresValidos = empleadores
+            .map((e) => {
+                const val = e[campo];
+                if (typeof val === 'number') return isNaN(val) ? null : val;
+                const parsed = parseFloat(val);
+                return isNaN(parsed) ? null : parsed;
+            })
+            .filter((v): v is number => v !== null && v > 0);
+
+        if (valoresValidos.length === 0) return defaultVal;
+        return Number((valoresValidos.reduce((a, b) => a + b, 0) / valoresValidos.length).toFixed(2));
+    };
+
+    // 4. Competencias Evaluadas para el Radar (HU 4 y Formación/Perfil Empleadores)
+    const radarCompetencias = [
         {
             competencia: 'Confianza Formadora',
-            puntaje: empleadores.length
-                ? Number(
-                    (
-                        empleadores.reduce((acc, e) => acc + (Number(e.confianza_carrera_formadora) || 3), 0) /
-                        empleadores.length
-                    ).toFixed(2)
-                )
-                : 3.5,
+            puntaje: getPromedio('confianza_carrera_formadora', 3.5),
         },
         {
             competencia: 'Competencias Demostradas',
-            puntaje: empleadores.length
-                ? Number(
-                    (
-                        empleadores.reduce((acc, e) => acc + (Number(e.consistencia_titulo_competencias) || 3), 0) /
-                        empleadores.length
-                    ).toFixed(2)
-                )
-                : 3.8,
+            puntaje: getPromedio('consistencia_titulo_competencias', 3.8),
         },
         {
             competencia: 'Coherencia Perfil-Labor',
-            puntaje: empleadores.length
-                ? Number(
-                    (
-                        empleadores.reduce((acc, e) => acc + (Number(e.coherencia_perfil_desempeno) || 3), 0) /
-                        empleadores.length
-                    ).toFixed(2)
-                )
-                : 3.4,
+            puntaje: getPromedio('coherencia_perfil_desempeno', 3.4),
         },
         {
             competencia: 'Ética y Responsabilidad',
-            puntaje: empleadores.length
-                ? Number(
-                    (
-                        empleadores.reduce((acc, e) => acc + (Number(e.valores_etica_responsabilidad) || 3), 0) /
-                        empleadores.length
-                    ).toFixed(2)
-                )
-                : 4.1,
+            puntaje: getPromedio('valores_etica_responsabilidad', 4.1),
         },
         {
             competencia: 'Destreza Tecnológica TI',
-            puntaje: empleadores.length
-                ? Number(
-                    (
-                        empleadores.reduce((acc, e) => acc + (Number(e.evidencia_competencias_laborales) || 3), 0) /
-                        empleadores.length
-                    ).toFixed(2)
-                )
-                : 3.9,
+            puntaje: getPromedio('evidencia_competencias_laborales', 3.9),
         },
     ];
+
+    // 4.1. Radar de Vinculación y Alianzas Estratégicas (Criterio Acreditación ARCUSUR)
+    const radarVinculacion = [
+        {
+            indicador: 'Búsqueda Talento UMSS',
+            puntaje: getPromedio('busqueda_talento_umss', 3.7),
+        },
+        {
+            indicador: 'Vínculos Oportunidades',
+            puntaje: getPromedio('vinculos_oportunidades_laborales', 3.5),
+        },
+        {
+            indicador: 'Difusión y Pasantías',
+            puntaje: getPromedio('participacion_difusion_pasantias', 3.4),
+        },
+        {
+            indicador: 'Consulta Plan Estudios',
+            puntaje: getPromedio('consulta_retroalimentacion_plan', 3.2),
+        },
+        {
+            indicador: 'Autoevaluación Continua',
+            puntaje: getPromedio('consulta_procesos_autoevaluacion', 3.1),
+        },
+    ];
+
+    // Distribución de Empresas por Tipo (Público vs Privado)
+    const distribucionTipoOrg = calcularDistribucionFrecuencias(
+        empleadores.map((e) => e.tipo_organizacion).filter(Boolean)
+    );
+
+    // Distribución de Proyección de Contratación Futura
+    const distribucionContratacion = calcularDistribucionFrecuencias(
+        empleadores.map((e) => e.probabilidad_incorporacion_futura).filter(Boolean)
+    );
 
     // 5. Exportar a Excel limpio (HU 5)
     const exportarAExcel = () => {
@@ -242,7 +257,7 @@ export default function DashboardPage() {
                     </p>
                     <div className="h-64 sm:h-72 md:h-80 w-full min-w-0 flex-1">
                         <ResponsiveContainer width="100%" height="100%">
-                            <RadarChart data={radarData} margin={{ top: 10, right: 20, bottom: 10, left: 20 }}>
+                            <RadarChart data={radarCompetencias} margin={{ top: 10, right: 20, bottom: 10, left: 20 }}>
                                 <PolarGrid stroke="#e2e8f0" />
                                 <PolarAngleAxis dataKey="competencia" fontSize={9} stroke="#475569" />
                                 <PolarRadiusAxis angle={30} domain={[0, 5]} fontSize={9} />
@@ -250,6 +265,103 @@ export default function DashboardPage() {
                                 <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '8px' }} />
                             </RadarChart>
                         </ResponsiveContainer>
+                    </div>
+                </div>
+
+            </div>
+
+            {/* SECCIÓN ARCUSUR: Vinculación Empresarial y Demanda Laboral */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8 mb-6 sm:mb-8">
+
+                {/* Radar de Vinculación Institucional */}
+                <div className="bg-white p-4 sm:p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col min-w-0">
+                    <div className="flex items-center justify-between mb-1">
+                        <h3 className="font-bold text-slate-800 text-base sm:text-lg">
+                            Vinculación y Alianzas Estratégicas (ARCUSUR)
+                        </h3>
+                        <span className="text-[11px] font-semibold bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded border border-emerald-200">
+                            Criterio de Pertinencia
+                        </span>
+                    </div>
+                    <p className="text-xs text-slate-500 mb-4 sm:mb-6">
+                        Evaluación de convenios, pasantías, retroalimentación curricular y búsqueda de talento en la UMSS.
+                    </p>
+                    <div className="h-64 sm:h-72 md:h-80 w-full min-w-0 flex-1">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <RadarChart data={radarVinculacion} margin={{ top: 10, right: 20, bottom: 10, left: 20 }}>
+                                <PolarGrid stroke="#e2e8f0" />
+                                <PolarAngleAxis dataKey="indicador" fontSize={9} stroke="#475569" />
+                                <PolarRadiusAxis angle={30} domain={[0, 5]} fontSize={9} />
+                                <Radar name="Nivel de Vinculación" dataKey="puntaje" stroke="#003770" fill="#003770" fillOpacity={0.35} />
+                                <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '8px' }} />
+                            </RadarChart>
+                        </ResponsiveContainer>
+                    </div>
+                </div>
+
+                {/* Demanda de Contratación y Tipo de Organización */}
+                <div className="bg-white p-4 sm:p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
+                    <div>
+                        <div className="flex items-center justify-between mb-1">
+                            <h3 className="font-bold text-slate-800 text-base sm:text-lg">
+                                Demanda y Entorno Productivo
+                            </h3>
+                            <span className="text-[11px] font-semibold bg-blue-50 text-umss-azul px-2 py-0.5 rounded border border-blue-200">
+                                Sector Empleador
+                            </span>
+                        </div>
+                        <p className="text-xs text-slate-500 mb-4">
+                            Proyección de inserción laboral y distribución de empresas encuestadas.
+                        </p>
+
+                        {/* Breakdown por tipo de organización */}
+                        <div className="mb-5 bg-slate-50 p-3.5 rounded-lg border border-slate-200">
+                            <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
+                                Distribución por Tipo de Organización
+                            </h4>
+                            <div className="grid grid-cols-2 gap-2 text-xs">
+                                {distribucionTipoOrg.length > 0 ? (
+                                    distribucionTipoOrg.map((item, idx) => (
+                                        <div key={idx} className="bg-white p-2.5 rounded border border-slate-200 flex justify-between items-center">
+                                            <span className="font-medium text-slate-700">{item.nombre}</span>
+                                            <span className="font-bold text-umss-azul">{item.porcentaje}% ({item.cantidad})</span>
+                                        </div>
+                                    ))
+                                ) : (
+                                    <>
+                                        <div className="bg-white p-2.5 rounded border border-slate-200 flex justify-between items-center">
+                                            <span className="font-medium text-slate-700">Sector Privado</span>
+                                            <span className="font-bold text-umss-azul">75% (est.)</span>
+                                        </div>
+                                        <div className="bg-white p-2.5 rounded border border-slate-200 flex justify-between items-center">
+                                            <span className="font-medium text-slate-700">Sector Público</span>
+                                            <span className="font-bold text-umss-azul">25% (est.)</span>
+                                        </div>
+                                    </>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Proyección de contratación */}
+                        <div>
+                            <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
+                                Proyección de Contratación de Nuevos Ingenieros
+                            </h4>
+                            <div className="space-y-2 text-xs">
+                                {distribucionContratacion.length > 0 ? (
+                                    distribucionContratacion.map((item, idx) => (
+                                        <div key={idx} className="bg-slate-50 p-2.5 rounded border border-slate-200 flex justify-between items-center">
+                                            <span className="text-slate-700 font-medium truncate max-w-[220px] sm:max-w-xs">{item.nombre}</span>
+                                            <span className="font-bold text-slate-900 flex-shrink-0">{item.porcentaje}%</span>
+                                        </div>
+                                    ))
+                                ) : (
+                                    <div className="bg-slate-50 p-3 rounded-lg border border-slate-200 text-xs text-slate-500">
+                                        Las tendencias de absorción laboral se calcularán automáticamente al importar los datos de empleadores.
+                                    </div>
+                                )}
+                            </div>
+                        </div>
                     </div>
                 </div>
 

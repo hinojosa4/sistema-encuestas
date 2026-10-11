@@ -7,6 +7,8 @@ import Papa from 'papaparse';
 import { supabase } from '@/lib/supabaseClient';
 import { Upload, CheckCircle2, AlertCircle, FileSpreadsheet, Loader2 } from 'lucide-react';
 
+import { mapearFilaEmpleador, mapearFilaTitulado } from '@/lib/dataMappers';
+
 export default function UploadPage() {
     const [targetTable, setTargetTable] = useState<'encuesta_titulados' | 'encuesta_empleadores'>('encuesta_titulados');
     const [dataPreview, setDataPreview] = useState<any[]>([]);
@@ -62,7 +64,7 @@ export default function UploadPage() {
         }
     };
 
-    // 2. Insertar registros en lotes (batch) a Supabase
+    // 2. Insertar registros en lotes (batch) a Supabase con normalización inteligente (Data Wrangling)
     const handleSaveToDatabase = async () => {
         if (dataPreview.length === 0) return;
 
@@ -70,17 +72,12 @@ export default function UploadPage() {
         setMessage(null);
 
         try {
-            // Limpieza básica de datos (Data Wrangling)
+            // Mapeo inteligente de Google Forms / Excel a esquema de Base de Datos
             const cleanedData = dataPreview.map((row) => {
-                const item: any = {};
-                for (const key in row) {
-                    let value = row[key];
-                    if (typeof value === 'string') {
-                        value = value.trim(); // Quitar espacios accidentales
-                    }
-                    item[key] = value;
+                if (targetTable === 'encuesta_empleadores') {
+                    return mapearFilaEmpleador(row);
                 }
-                return item;
+                return mapearFilaTitulado(row);
             });
 
             // Insertar por lotes de 100 para no saturar la red
@@ -99,7 +96,7 @@ export default function UploadPage() {
 
             setMessage({
                 type: 'success',
-                text: `¡Éxito! Se cargaron correctamente ${totalInserted} registros en la tabla "${targetTable}".`,
+                text: `¡Éxito! Se normalizaron y cargaron correctamente ${totalInserted} registros en la tabla "${targetTable}".`,
             });
             setDataPreview([]);
             setHeaders([]);
@@ -107,7 +104,7 @@ export default function UploadPage() {
         } catch (err: any) {
             setMessage({
                 type: 'error',
-                text: `Error al insertar en la base de datos: ${err.message}. Verifica que las columnas coincidan.`,
+                text: `Error al insertar en la base de datos: ${err.message}. Asegúrate de que la tabla en Supabase contenga las columnas requeridas (ejecuta el script SQL en scripts/setup_encuesta_empleadores.sql si aún no lo hiciste).`,
             });
         } finally {
             setLoading(false);
