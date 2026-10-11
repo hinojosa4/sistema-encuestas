@@ -9,9 +9,10 @@ interface TabTituladosProps {
 
 export const TabTitulados: React.FC<TabTituladosProps> = ({ areasInteres, titulados = [] }) => {
     // 1. Cálculo dinámico de Inserción Laboral Temprana (< 4 meses)
-    const tituladosConEmpleo = titulados.filter((t) => t.tiempo_conseguir_primer_empleo);
+    // Lee tiempo_conseguir_primer_empleo o es_primer_empleo indistintamente
+    const tituladosConEmpleo = titulados.filter((t) => t.tiempo_conseguir_primer_empleo || t.es_primer_empleo);
     const insercionTemprana = tituladosConEmpleo.filter((t) => {
-        const tiempo = String(t.tiempo_conseguir_primer_empleo).toLowerCase();
+        const tiempo = String(t.tiempo_conseguir_primer_empleo || t.es_primer_empleo || '').toLowerCase();
         return (
             tiempo.includes('antes de titularse') ||
             tiempo.includes('menos de 1 mes') ||
