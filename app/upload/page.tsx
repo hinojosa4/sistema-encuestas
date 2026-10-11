@@ -5,9 +5,13 @@ import React, { useState } from 'react';
 import * as XLSX from 'xlsx';
 import Papa from 'papaparse';
 import { supabase } from '@/lib/supabaseClient';
-import { Upload, CheckCircle2, AlertCircle, FileSpreadsheet, Loader2 } from 'lucide-react';
-
+import { CheckCircle2, AlertCircle, FileSpreadsheet } from 'lucide-react';
 import { mapearFilaEmpleador, mapearFilaTitulado } from '@/lib/dataMappers';
+import { validarArchivo, validarCorrespondenciaEncuesta } from '@/lib/fileValidation';
+
+import { TableSelector } from '@/components/upload/TableSelector';
+import { DropZone } from '@/components/upload/DropZone';
+import { DataPreviewTable } from '@/components/upload/DataPreviewTable';
 
 export default function UploadPage() {
     const [targetTable, setTargetTable] = useState<'encuesta_titulados' | 'encuesta_empleadores'>('encuesta_titulados');
@@ -17,11 +21,31 @@ export default function UploadPage() {
     const [loading, setLoading] = useState(false);
     const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-    // 1. Procesar archivo Excel o CSV en el cliente
+    const procesarDatosLeidos = (data: any[], detectedHeaders: string[]) => {
+        // Validación de correspondencia institucional
+        const validacionEncuesta = validarCorrespondenciaEncuesta(detectedHeaders, targetTable);
+        if (!validacionEncuesta.isValid) {
+            setMessage({ type: 'error', text: validacionEncuesta.errorMessage! });
+            setDataPreview([]);
+            setHeaders([]);
+            return;
+        }
+
+        setHeaders(detectedHeaders);
+        setDataPreview(data);
+    };
+
     const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
         setMessage(null);
         const file = e.target.files?.[0];
         if (!file) return;
+
+        // Validación preliminar de archivo
+        const validacionArchivo = validarArchivo(file);
+        if (!validacionArchivo.isValid) {
+            setMessage({ type: 'error', text: validacionArchivo.errorMessage! });
+            return;
+        }
 
         setFileName(file.name);
         const extension = file.name.split('.').pop()?.toLowerCase();
@@ -32,15 +56,17 @@ export default function UploadPage() {
                 skipEmptyLines: true,
                 complete: (results) => {
                     if (results.data.length > 0) {
-                        setHeaders(Object.keys(results.data[0] as object));
-                        setDataPreview(results.data);
+                        const detectedHeaders = Object.keys(results.data[0] as object);
+                        procesarDatosLeidos(results.data, detectedHeaders);
+                    } else {
+                        setMessage({ type: 'error', text: 'El archivo seleccionado no contiene registros de respuestas.' });
                     }
                 },
-                error: (err) => {
-                    setMessage({ type: 'error', text: `Error al leer CSV: ${err.message}` });
+                error: () => {
+                    setMessage({ type: 'error', text: 'Inconsistencia al interpretar el archivo CSV. Compruebe la codificación.' });
                 },
             });
-        } else if (extension === 'xlsx' || extension === 'xls') {
+        } else {
             const reader = new FileReader();
             reader.onload = (evt) => {
                 try {
@@ -51,20 +77,19 @@ export default function UploadPage() {
                     const json = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
 
                     if (json.length > 0) {
-                        setHeaders(Object.keys(json[0] as object));
-                        setDataPreview(json);
+                        const detectedHeaders = Object.keys(json[0] as object);
+                        procesarDatosLeidos(json, detectedHeaders);
+                    } else {
+                        setMessage({ type: 'error', text: 'La hoja de cálculo seleccionada no contiene registros de respuestas.' });
                     }
-                } catch (error: any) {
-                    setMessage({ type: 'error', text: `Error al leer Excel: ${error.message}` });
+                } catch {
+                    setMessage({ type: 'error', text: 'No fue posible abrir el archivo de Excel. Verifique que no esté dañado.' });
                 }
             };
             reader.readAsBinaryString(file);
-        } else {
-            setMessage({ type: 'error', text: 'Formato no soportado. Selecciona un archivo .xlsx, .xls o .csv' });
         }
     };
 
-    // 2. Insertar registros en lotes (batch) a Supabase con normalización inteligente (Data Wrangling)
     const handleSaveToDatabase = async () => {
         if (dataPreview.length === 0) return;
 
@@ -72,39 +97,51 @@ export default function UploadPage() {
         setMessage(null);
 
         try {
-            // Mapeo inteligente de Google Forms / Excel a esquema de Base de Datos
-            const cleanedData = dataPreview.map((row) => {
-                if (targetTable === 'encuesta_empleadores') {
-                    return mapearFilaEmpleador(row);
-                }
-                return mapearFilaTitulado(row);
-            });
+            // 1. Limpieza y mapeo estructurado de cada fila
+            const cleanedData = dataPreview.map((row) =>
+                targetTable === 'encuesta_empleadores' ? mapearFilaEmpleador(row) : mapearFilaTitulado(row)
+            );
 
-            // Insertar por lotes de 100 para no saturar la red
+            // 2. Limpieza automática previa para evitar duplicados accidentales
+            const { error: deleteError } = await supabase
+                .from(targetTable)
+                .delete()
+                .neq('id', 0);
+
+            if (deleteError) {
+                throw new Error('No se pudo restablecer la cohorte anterior.');
+            }
+
+            // 3. Inserción por lotes de 100 registros (Batch Insert)
             const batchSize = 100;
             let totalInserted = 0;
 
             for (let i = 0; i < cleanedData.length; i += batchSize) {
                 const batch = cleanedData.slice(i, i + batchSize);
-                const { error } = await supabase.from(targetTable).insert(batch);
+                const { error: insertError } = await supabase.from(targetTable).insert(batch);
 
-                if (error) {
-                    throw new Error(error.message);
+                if (insertError) {
+                    console.error('Detalle técnico de la inserción:', insertError);
+                    throw new Error('Estructura de datos incompatible con el esquema institucional.');
                 }
                 totalInserted += batch.length;
             }
 
+            const nombreInstrumento = targetTable === 'encuesta_titulados' ? 'Titulados' : 'Empleadores';
+
             setMessage({
                 type: 'success',
-                text: `¡Éxito! Se normalizaron y cargaron correctamente ${totalInserted} registros en la tabla "${targetTable}".`,
+                text: `Se importaron y procesaron correctamente ${totalInserted} registros en el repositorio institucional de ${nombreInstrumento}.`,
             });
+
             setDataPreview([]);
             setHeaders([]);
             setFileName('');
-        } catch (err: any) {
+        } catch (err) {
+            console.error('Error durante la importación:', err);
             setMessage({
                 type: 'error',
-                text: `Error al insertar en la base de datos: ${err.message}. Asegúrate de que la tabla en Supabase contenga las columnas requeridas (ejecuta el script SQL en scripts/setup_encuesta_empleadores.sql si aún no lo hiciste).`,
+                text: 'No fue posible completar la importación. Compruebe que el documento corresponda al instrumento oficial seleccionado e intente nuevamente.',
             });
         } finally {
             setLoading(false);
@@ -113,81 +150,43 @@ export default function UploadPage() {
 
     return (
         <div className="max-w-6xl mx-auto py-6 sm:py-10 px-3 sm:px-6 lg:px-8">
-            <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 sm:p-6 md:p-8">
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 sm:p-6 md:p-8">
 
-                {/* Encabezado */}
+                {/* Encabezado Institucional */}
                 <div className="border-b border-slate-100 pb-4 sm:pb-5 mb-5 sm:mb-6">
-                    <h2 className="text-xl sm:text-2xl font-bold text-umss-azul flex flex-wrap items-center gap-2">
+                    <h2 className="text-xl sm:text-2xl font-bold text-umss-azul flex items-center gap-2">
                         <FileSpreadsheet className="text-umss-rojo h-6 w-6 flex-shrink-0" />
-                        <span>Carga y Procesamiento de Encuestas</span>
+                        <span>Módulo de Importación y Procesamiento de Datos</span>
                     </h2>
                     <p className="text-xs sm:text-sm text-slate-600 mt-1 leading-relaxed">
-                        Sube el archivo Excel o CSV exportado desde Microsoft Forms / Google Forms para almacenarlo en la base de datos y actualizar las métricas.
+                        Plataforma institucional para la ingesta y estructuración de respuestas recopiladas en los instrumentos de autoevaluación ARCUSUR.
                     </p>
                 </div>
 
-                {/* Selección de tipo de encuesta */}
-                <div className="mb-5 sm:mb-6">
-                    <label className="block text-xs sm:text-sm font-semibold text-slate-700 mb-2">
-                        1. Selecciona el tipo de encuesta que vas a cargar:
-                    </label>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                        <button
-                            type="button"
-                            onClick={() => setTargetTable('encuesta_titulados')}
-                            className={`p-3.5 sm:p-4 rounded-lg border text-left font-medium transition-all text-xs sm:text-sm ${targetTable === 'encuesta_titulados'
-                                    ? 'border-umss-azul bg-blue-50/70 text-umss-azul font-bold ring-2 ring-umss-azul/20'
-                                    : 'border-slate-200 hover:bg-slate-50 text-slate-700'
-                                }`}
-                        >
-                            🎓 Encuesta a Titulados (Graduados)
-                            <span className="block text-[11px] sm:text-xs font-normal text-slate-500 mt-1">
-                                Datos de egreso, formación continua, empleo y asignaturas
-                            </span>
-                        </button>
+                {/* 1. Selector de Encuesta */}
+                <TableSelector
+                    targetTable={targetTable}
+                    setTargetTable={(t) => {
+                        setTargetTable(t);
+                        setDataPreview([]);
+                        setHeaders([]);
+                        setFileName('');
+                        setMessage(null);
+                    }}
+                    disabled={loading}
+                />
 
-                        <button
-                            type="button"
-                            onClick={() => setTargetTable('encuesta_empleadores')}
-                            className={`p-3.5 sm:p-4 rounded-lg border text-left font-medium transition-all text-xs sm:text-sm ${targetTable === 'encuesta_empleadores'
-                                    ? 'border-umss-azul bg-blue-50/70 text-umss-azul font-bold ring-2 ring-umss-azul/20'
-                                    : 'border-slate-200 hover:bg-slate-50 text-slate-700'
-                                }`}
-                        >
-                            🏢 Encuesta a Empleadores
-                            <span className="block text-[11px] sm:text-xs font-normal text-slate-500 mt-1">
-                                Datos de empresas públicas/privadas, competencias y demanda
-                            </span>
-                        </button>
-                    </div>
-                </div>
+                {/* 2. Zona de Carga Directa */}
+                <DropZone
+                    fileName={fileName}
+                    onFileSelected={handleFileUpload}
+                    disabled={loading}
+                />
 
-                {/* Zona de subida de archivo */}
-                <div className="mb-5 sm:mb-6">
-                    <label className="block text-xs sm:text-sm font-semibold text-slate-700 mb-2">
-                        2. Selecciona o arrastra el archivo (.xlsx, .xls o .csv):
-                    </label>
-                    <div className="border-2 border-dashed border-slate-300 hover:border-umss-azul rounded-xl p-5 sm:p-8 md:p-10 text-center bg-slate-50/50 cursor-pointer relative transition-colors">
-                        <input
-                            type="file"
-                            accept=".xlsx, .xls, .csv"
-                            onChange={handleFileUpload}
-                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                        />
-                        <Upload className="mx-auto h-10 w-10 sm:h-12 sm:w-12 text-slate-400 mb-2 sm:mb-3" />
-                        <p className="text-xs sm:text-sm font-semibold text-slate-700 px-2 break-all sm:break-normal">
-                            {fileName ? `Archivo seleccionado: ${fileName}` : 'Haz clic aquí o arrastra tu archivo Excel / CSV'}
-                        </p>
-                        <p className="text-[11px] sm:text-xs text-slate-500 mt-1 px-2">
-                            Compatible con Microsoft Excel (.xlsx), CSV delimitado por coma o punto y coma
-                        </p>
-                    </div>
-                </div>
-
-                {/* Notificaciones */}
+                {/* Mensajes y Alertas Profesionales */}
                 {message && (
                     <div
-                        className={`p-3.5 sm:p-4 rounded-lg mb-5 sm:mb-6 flex items-start gap-2.5 sm:gap-3 text-xs sm:text-sm ${message.type === 'success'
+                        className={`p-4 rounded-xl mb-6 flex items-start gap-3 text-xs sm:text-sm ${message.type === 'success'
                                 ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
                                 : 'bg-red-50 text-red-800 border border-red-200'
                             }`}
@@ -197,68 +196,17 @@ export default function UploadPage() {
                         ) : (
                             <AlertCircle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
                         )}
-                        <p className="leading-relaxed">{message.text}</p>
+                        <p className="leading-relaxed font-medium">{message.text}</p>
                     </div>
                 )}
 
-                {/* Vista previa de datos */}
-                {dataPreview.length > 0 && (
-                    <div className="mt-6 sm:mt-8 border-t border-slate-100 pt-5 sm:pt-6">
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
-                            <div>
-                                <h3 className="font-bold text-slate-800 text-sm sm:text-base">
-                                    Vista Previa de Datos ({dataPreview.length} filas detectadas)
-                                </h3>
-                                <p className="text-[11px] sm:text-xs text-slate-500">
-                                    Revisa las primeras 5 filas antes de guardar en Supabase.
-                                </p>
-                            </div>
-                            <button
-                                onClick={handleSaveToDatabase}
-                                disabled={loading}
-                                className="w-full sm:w-auto bg-umss-azul hover:bg-blue-900 text-white font-medium px-4 sm:px-5 py-2.5 rounded-lg shadow transition-colors flex items-center justify-center gap-2 text-xs sm:text-sm disabled:opacity-50"
-                            >
-                                {loading ? (
-                                    <>
-                                        <Loader2 className="h-4 w-4 animate-spin" />
-                                        <span>Guardando...</span>
-                                    </>
-                                ) : (
-                                    <>
-                                        <Upload className="h-4 w-4" />
-                                        <span>Confirmar y Guardar en Base de Datos</span>
-                                    </>
-                                )}
-                            </button>
-                        </div>
-
-                        <div className="overflow-x-auto custom-scrollbar max-h-72 border border-slate-200 rounded-lg w-full">
-                            <table className="min-w-full divide-y divide-slate-200 text-[11px] sm:text-xs text-left">
-                                <thead className="bg-slate-100 sticky top-0 font-semibold text-slate-700">
-                                    <tr>
-                                        {headers.map((h, idx) => (
-                                            <th key={idx} className="px-2.5 sm:px-3 py-2 border-r border-slate-200 whitespace-nowrap">
-                                                {h}
-                                            </th>
-                                        ))}
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-100 bg-white">
-                                    {dataPreview.slice(0, 5).map((row, rIdx) => (
-                                        <tr key={rIdx} className="hover:bg-slate-50">
-                                            {headers.map((h, cIdx) => (
-                                                <td key={cIdx} className="px-2.5 sm:px-3 py-2 border-r border-slate-100 whitespace-nowrap text-slate-600">
-                                                    {String(row[h] ?? '')}
-                                                </td>
-                                            ))}
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                )}
-
+                {/* 3. Vista Previa Tabular */}
+                <DataPreviewTable
+                    headers={headers}
+                    dataPreview={dataPreview}
+                    loading={loading}
+                    onConfirm={handleSaveToDatabase}
+                />
             </div>
         </div>
     );
