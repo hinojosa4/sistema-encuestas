@@ -236,10 +236,10 @@ export function mapearFilaTitulado(row: Record<string, any>): Record<string, any
             item.importancia_formacion_negocio = parseLikertValue(val);
 
             // 3. Inserción Laboral
+        } else if (normKey.includes('demoro en conseguir') || normKey.includes('tiempo conseguir') || normKey.includes('tiempo conseguir primer empleo')) {
+            item.tiempo_conseguir_primer_empleo = val;
         } else if (normKey.includes('primer empleo')) {
             item.es_primer_empleo = val;
-        } else if (normKey.includes('demoro en conseguir su primer trabajo') || normKey.includes('tiempo conseguir primer empleo')) {
-            item.tiempo_conseguir_primer_empleo = val;
         } else if (normKey.includes('cuantos empleos usted se ha desempenado') || normKey.includes('cantidad empleos')) {
             item.cantidad_empleos_desempenados = val;
 

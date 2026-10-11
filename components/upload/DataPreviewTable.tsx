@@ -42,7 +42,7 @@ export const DataPreviewTable: React.FC<DataPreviewTableProps> = ({
                     ) : (
                         <>
                             <Upload className="h-4 w-4" />
-                            <span>Confirmar y Guardar en Repositorio</span>
+                            <span>Guardar</span>
                         </>
                     )}
                 </button>
