@@ -48,7 +48,7 @@ export function calcularChiCuadrada(
     const valoresY = Array.from(new Set(datos.map((d) => d.varY).filter(Boolean)));
 
     if (valoresX.length < 2 || valoresY.length < 2) {
-        return { chi2: 0, pValor: 1, gradosLibertad: 0, matriz: [], existeDependencia: false };
+        return { chi2: 0, pValor: 1, gradosLibertad: 0, matriz: [], existeDependencia: false, filas: valoresX, columnas: valoresY };
     }
 
     // Matriz de frecuencias observadas
@@ -63,7 +63,7 @@ export function calcularChiCuadrada(
     const granTotal = totalesFila.reduce((a, b) => a + b, 0);
 
     if (granTotal === 0) {
-        return { chi2: 0, pValor: 1, gradosLibertad: 0, matriz: [], existeDependencia: false };
+        return { chi2: 0, pValor: 1, gradosLibertad: 0, matriz: [], existeDependencia: false, filas: valoresX, columnas: valoresY };
     }
 
     // Cálculo de Chi-cuadrada
