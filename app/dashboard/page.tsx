@@ -273,7 +273,7 @@ export default function DashboardPage() {
             </div>
 
             {/* Vistas según pestaña activa */}
-            {activeTab === 'titulados' && <TabTitulados areasInteres={areasInteres} />}
+            {activeTab === 'titulados' && <TabTitulados areasInteres={areasInteres} titulados={titulados} />}
             {activeTab === 'empleadores' && (
                 <TabEmpleadores
                     radarCompetencias={radarCompetencias}
