@@ -54,10 +54,24 @@ export default function DashboardPage() {
         titulados.map((t) => Number(t.tiempo_desempleado || 0))
     );
 
-    // HU 2: Áreas de demanda tecnológica
+    // HU 2: Áreas de interés de posgrado (solo el campo area_interes_posgrado)
     const areasInteres = calcularDistribucionFrecuencias(
         titulados
-            .map((t) => t.area_interes_posgrado || (t.nivel_posgrado_cursado ? 'Posgrado Cursado' : ''))
+            .map((t) => String(t.area_interes_posgrado || '').trim())
+            .filter(Boolean)
+    );
+
+    // HU 2: Distribución de niveles de posgrado demandados
+    const nivelesPosgrado = calcularDistribucionFrecuencias(
+        titulados
+            .map((t) => String(t.nivel_posgrado_cursado || t.interes_futuro_posgrado || '').trim())
+            .filter((v) => Boolean(v) && v.toLowerCase() !== 'no' && v.toLowerCase() !== 'false')
+    );
+
+    // HU 2: Distribución de situación laboral actual
+    const distribucionSituacionLaboral = calcularDistribucionFrecuencias(
+        titulados
+            .map((t) => String(t.situacion_laboral_actual || '').trim())
             .filter(Boolean)
     );
 
@@ -262,7 +276,14 @@ export default function DashboardPage() {
             </div>
 
             {/* Vistas según pestaña activa */}
-            {activeTab === 'titulados' && <TabTitulados areasInteres={areasInteres} titulados={titulados} />}
+            {activeTab === 'titulados' && (
+                <TabTitulados
+                    areasInteres={areasInteres}
+                    nivelesPosgrado={nivelesPosgrado}
+                    distribucionSituacionLaboral={distribucionSituacionLaboral}
+                    titulados={titulados}
+                />
+            )}
             {activeTab === 'empleadores' && (
                 <TabEmpleadores
                     radarCompetencias={radarCompetencias}
