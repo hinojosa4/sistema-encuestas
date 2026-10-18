@@ -75,37 +75,36 @@ export default function DashboardPage() {
             }))
     );
 
-    // HU 4: Radar de Competencias Profesionales (Likert 1 a 5)
+    // HU 4: Radar de Competencias Profesionales (Cálculo dinámico basado en respuestas reales)
+    const calcularPromedioCampo = (campo: string): number => {
+        const valoresValidos = empleadores
+            .map((e) => Number(e[campo]))
+            .filter((v) => !isNaN(v) && v > 0);
+        if (valoresValidos.length === 0) return 0;
+        const suma = valoresValidos.reduce((acc, val) => acc + val, 0);
+        return Number((suma / valoresValidos.length).toFixed(2));
+    };
+
     const radarCompetencias = [
         {
             competencia: 'Confianza Formadora',
-            puntaje: empleadores.length
-                ? Number((empleadores.reduce((acc, e) => acc + (Number(e.confianza_carrera_formadora) || 3), 0) / empleadores.length).toFixed(2))
-                : 4.0,
+            puntaje: calcularPromedioCampo('confianza_carrera_formadora'),
         },
         {
             competencia: 'Competencias Demostradas',
-            puntaje: empleadores.length
-                ? Number((empleadores.reduce((acc, e) => acc + (Number(e.consistencia_titulo_competencias) || 3), 0) / empleadores.length).toFixed(2))
-                : 4.0,
+            puntaje: calcularPromedioCampo('consistencia_titulo_competencias'),
         },
         {
             competencia: 'Coherencia Perfil-Labor',
-            puntaje: empleadores.length
-                ? Number((empleadores.reduce((acc, e) => acc + (Number(e.coherencia_perfil_desempeno) || 3), 0) / empleadores.length).toFixed(2))
-                : 3.8,
+            puntaje: calcularPromedioCampo('coherencia_perfil_desempeno'),
         },
         {
             competencia: 'Ética y Responsabilidad',
-            puntaje: empleadores.length
-                ? Number((empleadores.reduce((acc, e) => acc + (Number(e.valores_etica_responsabilidad) || 3), 0) / empleadores.length).toFixed(2))
-                : 4.6,
+            puntaje: calcularPromedioCampo('valores_etica_responsabilidad'),
         },
         {
             competencia: 'Destrezas TI y Práctica',
-            puntaje: empleadores.length
-                ? Number((empleadores.reduce((acc, e) => acc + (Number(e.evidencia_competencias_laborales) || 3), 0) / empleadores.length).toFixed(2))
-                : 4.0,
+            puntaje: calcularPromedioCampo('evidencia_competencias_laborales'),
         },
     ];
 
@@ -113,33 +112,23 @@ export default function DashboardPage() {
     const radarVinculacion = [
         {
             criterio: 'Búsqueda Talento UMSS',
-            valor: empleadores.length
-                ? Number((empleadores.reduce((acc, e) => acc + (Number(e.busqueda_talento_umss) || 3), 0) / empleadores.length).toFixed(2))
-                : 4.2,
+            valor: calcularPromedioCampo('busqueda_talento_umss'),
         },
         {
             criterio: 'Vínculos Oportunidades',
-            valor: empleadores.length
-                ? Number((empleadores.reduce((acc, e) => acc + (Number(e.vinculos_oportunidades_laborales) || 3), 0) / empleadores.length).toFixed(2))
-                : 3.6,
+            valor: calcularPromedioCampo('vinculos_oportunidades_laborales'),
         },
         {
             criterio: 'Difusión y Pasantías',
-            valor: empleadores.length
-                ? Number((empleadores.reduce((acc, e) => acc + (Number(e.participacion_difusion_pasantias) || 3), 0) / empleadores.length).toFixed(2))
-                : 4.1,
+            valor: calcularPromedioCampo('participacion_difusion_pasantias'),
         },
         {
             criterio: 'Consulta Plan Estudios',
-            valor: empleadores.length
-                ? Number((empleadores.reduce((acc, e) => acc + (Number(e.consulta_retroalimentacion_plan) || 2), 0) / empleadores.length).toFixed(2))
-                : 2.5,
+            valor: calcularPromedioCampo('consulta_retroalimentacion_plan'),
         },
         {
             criterio: 'Autoevaluación Continua',
-            valor: empleadores.length
-                ? Number((empleadores.reduce((acc, e) => acc + (Number(e.consulta_procesos_autoevaluacion) || 2), 0) / empleadores.length).toFixed(2))
-                : 2.3,
+            valor: calcularPromedioCampo('consulta_procesos_autoevaluacion'),
         },
     ];
 
@@ -278,6 +267,7 @@ export default function DashboardPage() {
                 <TabEmpleadores
                     radarCompetencias={radarCompetencias}
                     radarVinculacion={radarVinculacion}
+                    totalEmpleadores={empleadores.length}
                 />
             )}
             {activeTab === 'estadistica' && <TabChiCuadrada chiData={chiData} />}
