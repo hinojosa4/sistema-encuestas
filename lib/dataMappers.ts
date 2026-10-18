@@ -3,7 +3,7 @@
 /**
  * Convierte respuestas en escala Likert textual de Google Forms a valor numérico (1 - 5).
  * - "Totalmente de acuerdo" -> 5
- * - "Parcialmente de acuerdo" -> 3
+ * - "Parcialmente de acuerdo" / "De acuerdo" -> 3
  * - "Totalmente desacuerdo" / "En desacuerdo" -> 1
  * - "No sabe" -> null (se excluye de promedios para no sesgar la métrica)
  */
@@ -46,7 +46,9 @@ function cleanText(text: string): string {
  * Mapea una fila cruda (de Excel o CSV de Google Forms) a las columnas estructuradas de `encuesta_empleadores`.
  */
 export function mapearFilaEmpleador(row: Record<string, any>): Record<string, any> {
-    const item: Record<string, any> = {};
+    const item: Record<string, any> = {
+        raw_data: row,
+    };
 
     for (const [key, rawVal] of Object.entries(row)) {
         const val = typeof rawVal === 'string' ? rawVal.trim() : rawVal;
@@ -55,17 +57,17 @@ export function mapearFilaEmpleador(row: Record<string, any>): Record<string, an
         // 0. Datos Generales
         if (normKey.includes('correo') || normKey.includes('email')) {
             item.correo_electronico = val;
-        } else if (normKey.includes('nombre de la empresa') || normKey.includes('institucion')) {
+        } else if (normKey.includes('nombre de la empresa')) {
             item.nombre_empresa = val;
         } else if (normKey.includes('tipo de organizacion')) {
             item.tipo_organizacion = val;
         } else if (normKey.includes('tamano de la organizacion')) {
             item.tamano_organizacion = val;
-        } else if (normKey.includes('rubro') || normKey.includes('sector principal')) {
+        } else if (normKey.includes('rubro o sector principal') || (normKey.includes('rubro') && normKey.includes('organizacion'))) {
             item.rubro_sector = val;
 
             // 1. Empleabilidad
-        } else if (normKey.includes('contratado ingenieros') || normKey.includes('ultimos anos')) {
+        } else if (normKey.includes('contratado ingenieros') || normKey.includes('ultimos anos') || normKey.includes('ultimos anios')) {
             item.ha_contratado_sistemas = val;
         } else if (normKey.includes('posibilidad de incorporar') || normKey.includes('incorporar ingenieros') || normKey.includes('proximos anos')) {
             item.probabilidad_incorporacion_futura = val;
@@ -113,7 +115,7 @@ export function mapearFilaEmpleador(row: Record<string, any>): Record<string, an
             item.participacion_difusion_pasantias = parseLikertValue(val);
         } else if (normKey.includes('intercambio de conocimientos experiencias') || normKey.includes('profesionales del sector tecnologico')) {
             item.participacion_intercambio_conocimiento = parseLikertValue(val);
-        } else if (normKey.includes('proposito de retroalimentar el perfil')) {
+        } else if (normKey.includes('proposito de retroalimentar el perfil') || normKey.includes('retroalimentar el perfil profesional')) {
             item.consulta_retroalimentacion_plan = parseLikertValue(val);
         } else if (normKey.includes('pertinencia de la formacion impartida')) {
             item.consulta_pertinencia_formacion = parseLikertValue(val);
@@ -149,10 +151,7 @@ export function mapearFilaEmpleador(row: Record<string, any>): Record<string, an
 }
 
 /**
- * Normaliza filas para encuesta de titulados.
- */
-/**
- * Normaliza filas para encuesta de titulados (alineada 100% con Supabase).
+ * Normaliza filas para encuesta de titulados (alineada 100% con Supabase y Microsoft Forms).
  */
 export function mapearFilaTitulado(row: Record<string, any>): Record<string, any> {
     const item: Record<string, any> = {
@@ -160,11 +159,25 @@ export function mapearFilaTitulado(row: Record<string, any>): Record<string, any
     };
 
     for (const [key, rawVal] of Object.entries(row)) {
+        const trimmedKey = key.trim();
+
+        // ⚠️ Omitir metadatos de Microsoft Forms (Puntos, Comentarios, Id, Horas)
+        // para evitar que columnas auxiliares vacías sobrescriban los datos reales
+        if (
+            trimmedKey.startsWith('Puntos:') ||
+            trimmedKey.startsWith('Comentarios:') ||
+            trimmedKey.startsWith('Hora de') ||
+            trimmedKey.startsWith('Total de puntos') ||
+            trimmedKey === 'Id'
+        ) {
+            continue;
+        }
+
         const val = typeof rawVal === 'string' ? rawVal.trim() : rawVal;
         const normKey = cleanText(key);
 
         // 0. Datos Generales
-        if (normKey.includes('edad')) {
+        if (normKey.includes('edad que tiene') || normKey === 'edad') {
             item.edad = val;
         } else if (normKey.includes('genero')) {
             item.genero = val;
@@ -177,7 +190,7 @@ export function mapearFilaTitulado(row: Record<string, any>): Record<string, any
         } else if (normKey.includes('donde ha cursado')) {
             item.institucion_posgrado_cursado = val;
         } else if (normKey.includes('fuente de financiamiento') || normKey.includes('financiamiento posgrado')) {
-            item.financiamiento_posgrado_cursado = val; // ✅ Corregido con _cursado
+            item.financiamiento_posgrado_cursado = val;
         } else if (normKey.includes('nombre del programa')) {
             item.nombre_programa_cursado = val;
         } else if (normKey.includes('interesado en realizar estudios en algun programa de posgrado') || normKey.includes('interes futuro posgrado')) {
@@ -190,12 +203,12 @@ export function mapearFilaTitulado(row: Record<string, any>): Record<string, any
             item.opinion_posgrado_fcyt = parseLikertValue(val);
 
             // 2. Tiempos y Situación Laboral
-        } else if (normKey.includes('vida profesional') || normKey.includes('anios vida')) {
+        } else if ((normKey.includes('anos de vida profesional') || normKey.includes('anios de vida profesional') || normKey.includes('vida profesional')) && !normKey.includes('asignaturas')) {
             item.anios_vida_profesional = parseFloat(String(val)) || 0;
-        } else if (normKey.includes('desempleado') || normKey.includes('tiempo desempleado')) {
+        } else if (normKey.includes('tiempo en que se ha encontrado desempleado') || normKey.includes('tiempo desempleado')) {
             item.tiempo_desempleado = parseFloat(String(val)) || 0;
-        } else if (normKey.includes('situacion laboral')) {
-            item.situacion_laboral_actual = val; // ✅ Corregido a situacion_laboral_actual
+        } else if (normKey.includes('describe su situacion laboral') || normKey.includes('situacion laboral actual')) {
+            item.situacion_laboral_actual = val;
 
             // Rama A: Empresa
         } else if (normKey.includes('donde trabaja actualmente') || normKey.includes('empresa trabajo actual')) {
@@ -236,9 +249,9 @@ export function mapearFilaTitulado(row: Record<string, any>): Record<string, any
             item.importancia_formacion_negocio = parseLikertValue(val);
 
             // 3. Inserción Laboral
-        } else if (normKey.includes('demoro en conseguir') || normKey.includes('tiempo conseguir') || normKey.includes('tiempo conseguir primer empleo')) {
+        } else if (normKey.includes('demoro en conseguir') || normKey.includes('tiempo conseguir primer trabajo') || normKey.includes('tiempo conseguir primer empleo')) {
             item.tiempo_conseguir_primer_empleo = val;
-        } else if (normKey.includes('primer empleo')) {
+        } else if (normKey.includes('primer empleo') && normKey.includes('ejerce actualmente')) {
             item.es_primer_empleo = val;
         } else if (normKey.includes('cuantos empleos usted se ha desempenado') || normKey.includes('cantidad empleos')) {
             item.cantidad_empleos_desempenados = val;
