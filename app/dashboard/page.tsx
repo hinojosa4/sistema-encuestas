@@ -46,12 +46,32 @@ export default function DashboardPage() {
         fetchData();
     }, []);
 
-    // HU 1: Estadísticos descriptivos
-    const statsAntiguedad = calcularEstadisticasUnivariadas(
-        titulados.map((t) => Number(t.anios_vida_profesional || 0))
-    );
+    // HU 1: Estadísticos descriptivos univariados y segmentación
+    const aniosList = titulados.map((t) => Number(t.anios_vida_profesional || 0)).filter((a) => a > 0);
+    const statsAntiguedad = calcularEstadisticasUnivariadas(aniosList);
     const statsDesempleo = calcularEstadisticasUnivariadas(
         titulados.map((t) => Number(t.tiempo_desempleado || 0))
+    );
+    const totalConAnios = aniosList.length || 1;
+    const juniorCount = aniosList.filter((a) => a <= 3).length;
+    const consolidadoCount = aniosList.filter((a) => a > 3).length;
+    const segmentacionAntiguedad = {
+        juniorCount,
+        juniorPct: Number(((juniorCount / totalConAnios) * 100).toFixed(1)),
+        consolidadoCount,
+        consolidadoPct: Number(((consolidadoCount / totalConAnios) * 100).toFixed(1)),
+    };
+
+    // HU 1: Distribución del sector de desempeño de los titulados
+    const distribucionSectoresTitulados = calcularDistribucionFrecuencias(
+        titulados
+            .map((t) => {
+                const s = String(t.sector_empresa_trabajo || '').trim().toUpperCase();
+                if (s.includes('PUB')) return 'Sector Público';
+                if (s.includes('PRIV')) return 'Sector Privado';
+                return s;
+            })
+            .filter(Boolean)
     );
 
     // HU 2: Áreas de interés de posgrado (solo el campo area_interes_posgrado)
@@ -61,17 +81,35 @@ export default function DashboardPage() {
             .filter(Boolean)
     );
 
-    // HU 2: Distribución de niveles de posgrado demandados
+    // HU 2: Distribución de niveles de posgrado demandados (limpiando residuos como 'SI'/'NO')
+    const normalizarNivelPosgrado = (val: string): string | null => {
+        const clean = val.toUpperCase().trim();
+        if (clean.includes('DIPLO')) return 'Diplomado';
+        if (clean.includes('ESPECIAL')) return 'Especialidad';
+        if (clean.includes('MAESTR')) return 'Maestría';
+        if (clean.includes('POS') && clean.includes('DOCTOR')) return 'Posdoctorado';
+        if (clean.includes('DOCTOR')) return 'Doctorado';
+        return null;
+    };
+
     const nivelesPosgrado = calcularDistribucionFrecuencias(
         titulados
-            .map((t) => String(t.nivel_posgrado_cursado || t.interes_futuro_posgrado || '').trim())
-            .filter((v) => Boolean(v) && v.toLowerCase() !== 'no' && v.toLowerCase() !== 'false')
+            .map((t) => normalizarNivelPosgrado(String(t.nivel_posgrado_cursado || '')))
+            .filter(Boolean) as string[]
     );
 
-    // HU 2: Distribución de situación laboral actual
+    // HU 1 & 2: Distribución de situación laboral actual normalizada
+    const normalizarSituacionLaboral = (val: string) => {
+        const s = val.toLowerCase().trim();
+        if (s.includes('trabajando') || s.includes('organizacion')) return 'Empleado en Organización';
+        if (s.includes('emprendimiento')) return 'Emprendimiento Propio';
+        if (s.includes('no trabajo') || s.includes('desempleado')) return 'Desempleado / En Búsqueda';
+        return val || 'No especificado';
+    };
+
     const distribucionSituacionLaboral = calcularDistribucionFrecuencias(
         titulados
-            .map((t) => String(t.situacion_laboral_actual || '').trim())
+            .map((t) => normalizarSituacionLaboral(String(t.situacion_laboral_actual || '')))
             .filter(Boolean)
     );
 
@@ -237,6 +275,7 @@ export default function DashboardPage() {
                 statsDesempleo={statsDesempleo}
                 totalTitulados={titulados.length}
                 totalEmpleadores={empleadores.length}
+                segmentacionAntiguedad={segmentacionAntiguedad}
             />
 
             {/* Navegación por Pestañas Responsiva */}
@@ -281,6 +320,8 @@ export default function DashboardPage() {
                     areasInteres={areasInteres}
                     nivelesPosgrado={nivelesPosgrado}
                     distribucionSituacionLaboral={distribucionSituacionLaboral}
+                    distribucionSectoresTitulados={distribucionSectoresTitulados}
+                    segmentacionAntiguedad={segmentacionAntiguedad}
                     titulados={titulados}
                 />
             )}
