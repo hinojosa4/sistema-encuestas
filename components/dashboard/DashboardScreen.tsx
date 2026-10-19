@@ -6,7 +6,7 @@ import { supabase } from '@/lib/supabaseClient';
 import { resumirFormacion, resumirFinanciamiento, filasCruceFinanciamiento } from '@/lib/postgraduate';
 import * as XLSX from 'xlsx';
 import {
-    BarChart3, Download, RefreshCw
+    BarChart3, Download, RefreshCw, GraduationCap, Building2
 } from 'lucide-react';
 
 import { TabTitulados } from '@/components/dashboard/TabTitulados';
@@ -141,10 +141,18 @@ export default function DashboardScreen() {
 
             {errorMessage && <p role="alert" className="p-4 bg-red-50 text-red-800 rounded-lg mb-4">{errorMessage}</p>}
 
-            <p className="mb-5 flex flex-wrap gap-3 text-xs text-slate-500">
-                <span className="rounded-full border border-slate-200 bg-white px-3 py-1.5"><strong className="text-slate-800">{titulados.length}</strong> respuestas de titulados</span>
-                <span className="rounded-full border border-slate-200 bg-white px-3 py-1.5"><strong className="text-slate-800">{empleadores.length}</strong> respuestas de empleadores</span>
-            </p>
+            {!errorMessage && <dl aria-label="Respuestas registradas" className="mb-6 grid grid-cols-2 gap-3 sm:gap-4">
+                {[
+                    { label: 'Respuestas de titulados', count: titulados.length, Icon: GraduationCap },
+                    { label: 'Respuestas de empleadores', count: empleadores.length, Icon: Building2 },
+                ].map(({ label, count, Icon }) => <div key={label} className="flex min-w-0 items-center gap-4 rounded-xl border border-slate-200 bg-white p-4 sm:px-5 sm:py-4">
+                    <span aria-hidden="true" className="hidden h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-slate-50 text-umss-azul sm:inline-flex"><Icon className="h-6 w-6" /></span>
+                    <div className="flex min-w-0 flex-col-reverse gap-1">
+                        <dt className="text-sm font-medium leading-snug text-slate-600">{label}</dt>
+                        <dd className="text-2xl font-bold leading-none tracking-tight text-slate-900 tabular-nums sm:text-3xl">{count.toLocaleString('es-BO')}</dd>
+                    </div>
+                </div>)}
+            </dl>}
 
             {/* Navegación por Pestañas Responsiva */}
             <AnalysisNavigation active={activeTab} onChange={setActiveTab} />
