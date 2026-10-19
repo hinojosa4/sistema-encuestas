@@ -1,118 +1,30 @@
-// components/dashboard/TabTitulados.tsx
-import React from 'react';
-import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip } from 'recharts';
+﻿'use client';
+import type { FormationSummary } from '@/lib/postgraduate';
+import { Distribution, Indicator, percentLabel } from './AnalyticsUI';
 
-interface TabTituladosProps {
-    areasInteres: Array<{ nombre: string; cantidad: number; porcentaje: number }>;
-    titulados?: any[];
-}
-
-export const TabTitulados: React.FC<TabTituladosProps> = ({ areasInteres, titulados = [] }) => {
-    // 1. Cálculo dinámico de Inserción Laboral Temprana (< 4 meses)
-    // Lee tiempo_conseguir_primer_empleo o es_primer_empleo indistintamente
-    const tituladosConEmpleo = titulados.filter((t) => t.tiempo_conseguir_primer_empleo || t.es_primer_empleo);
-    const insercionTemprana = tituladosConEmpleo.filter((t) => {
-        const tiempo = String(t.tiempo_conseguir_primer_empleo || t.es_primer_empleo || '').toLowerCase();
-        return (
-            tiempo.includes('antes de titularse') ||
-            tiempo.includes('menos de 1 mes') ||
-            tiempo.includes('1 - 4 meses') ||
-            tiempo.includes('1-4 meses')
-        );
-    }).length;
-
-    const porcentajeInsercion =
-        tituladosConEmpleo.length > 0
-            ? Math.round((insercionTemprana / tituladosConEmpleo.length) * 100)
-            : 0;
-
-    // 2. Cálculo dinámico de Emprendimientos / Startups
-    const emprendedores = titulados.filter((t) => {
-        const situacion = String(t.situacion_laboral_actual || '').toLowerCase();
-        return situacion.includes('emprendimiento') || t.origen_emprendimiento;
-    }).length;
-
-    const porcentajeEmprendimiento =
-        titulados.length > 0
-            ? Math.round((emprendedores / titulados.length) * 100)
-            : 0;
-
-    return (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8">
-            {/* HU 2: Áreas de Mayor Demanda */}
-            <div className="bg-white p-5 sm:p-6 rounded-xl border border-slate-200 shadow-sm">
-                <h3 className="font-bold text-slate-800 text-base sm:text-lg mb-1">
-                    Áreas Tecnológicas Prioritarias (HU 2)
-                </h3>
-                <p className="text-xs text-slate-500 mb-6">
-                    Distribución de demandas de formación continua entre los egresados de Sistemas.
-                </p>
-
-                {areasInteres.length > 0 ? (
-                    <div className="h-72 sm:h-80 w-full">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={areasInteres} margin={{ top: 10, right: 10, left: -20, bottom: 40 }}>
-                                <XAxis
-                                    dataKey="nombre"
-                                    fontSize={10}
-                                    stroke="#64748b"
-                                    interval={0}
-                                    angle={-25}
-                                    textAnchor="end"
-                                />
-                                <YAxis fontSize={11} stroke="#64748b" allowDecimals={false} />
-                                <Tooltip
-                                    formatter={(val: any) => [`${val} profesionales`, 'Demanda']}
-                                    contentStyle={{ borderRadius: '8px', fontSize: '12px' }}
-                                />
-                                <Bar dataKey="cantidad" fill="#003770" radius={[4, 4, 0, 0]} />
-                            </BarChart>
-                        </ResponsiveContainer>
-                    </div>
-                ) : (
-                    <div className="h-64 flex items-center justify-center text-xs text-slate-400 italic">
-                        No se registran datos para graficar las áreas prioritarias.
-                    </div>
-                )}
-            </div>
-
-            {/* Indicadores Dinámicos de Inserción */}
-            <div className="bg-white p-5 sm:p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
-                <div>
-                    <h3 className="font-bold text-slate-800 text-base sm:text-lg mb-1">
-                        Perfil de Empleabilidad e Inserción
-                    </h3>
-                    <p className="text-xs text-slate-500 mb-6">
-                        Métricas de absorción laboral temprana y perfil emprendedor calculadas sobre la muestra actual.
-                    </p>
-
-                    <div className="space-y-4 text-sm">
-                        <div className="p-4 bg-slate-50 rounded-lg border border-slate-200">
-                            <span className="font-semibold text-slate-700 block">
-                                Tasa de Inserción Laboral Temprana (&lt; 4 meses):
-                            </span>
-                            <span className="text-2xl sm:text-3xl font-bold text-emerald-600">
-                                {porcentajeInsercion}%
-                            </span>
-                            <p className="text-xs text-slate-500 mt-1">
-                                {insercionTemprana} de {tituladosConEmpleo.length} profesionales se incorporaron al mercado laboral antes de titularse o en menos de 4 meses.
-                            </p>
-                        </div>
-
-                        <div className="p-4 bg-slate-50 rounded-lg border border-slate-200">
-                            <span className="font-semibold text-slate-700 block">
-                                Iniciativa Empresarial y Startups:
-                            </span>
-                            <span className="text-2xl sm:text-3xl font-bold text-umss-azul">
-                                {porcentajeEmprendimiento}%
-                            </span>
-                            <p className="text-xs text-slate-500 mt-1">
-                                {emprendedores} de {titulados.length} titulados lideran emprendimientos de base tecnológica o unidades Spin-Off.
-                            </p>
-                        </div>
-                    </div>
-                </div>
-            </div>
+export function TabTitulados({ summary: s }: { summary: FormationSummary }) {
+    const areas = s.areas;
+    const levels = s.niveles;
+    const concentration = s.concentracion;
+    const leader = areas[0];
+    const levelsTotal = levels.reduce((n, row) => n + row.cantidad, 0);
+    return <section className="space-y-6" aria-labelledby="hu2-title">
+        <header><p className="text-xs font-semibold uppercase tracking-widest text-umss-azul">Formación continua</p><h2 id="hu2-title" className="mt-2 text-2xl font-bold tracking-tight text-slate-900">¿En qué quieren especializarse?</h2><p className="mt-2 text-sm text-slate-500">Preferencias temáticas para orientar el estudio de nuevas ofertas académicas.</p></header>
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <Indicator label="Interés en estudiar un posgrado" value={s.interesados + s.sinInteres ? percentLabel(s.interesados / (s.interesados + s.sinInteres) * 100) : '—'} detail={<>{s.interesados} de {s.interesados + s.sinInteres} respuestas Sí/No válidas · {s.interesNoUtilizable} sin respuesta utilizable.</>} />
+            <Indicator label="Interesados con área declarada" value={concentration.total} detail={<>{s.sinArea} interesados sin área. Base de los porcentajes temáticos.</>} />
+            <Indicator label="Área con más preferencias" value={leader ? percentLabel(leader.cantidad / concentration.total * 100) : '—'} detail={leader ? <>{leader.nombre} · {leader.cantidad} respuestas</> : 'No hay áreas declaradas.'} />
+            <Indicator label="Concentración en las dos primeras áreas" value={concentration.total ? percentLabel(concentration.porcentaje) : '—'} detail={concentration.total ? `${concentration.superaUmbral ? 'Supera' : 'No supera'} el umbral orientativo del 70%.` : 'Se necesitan respuestas para calcularla.'} />
         </div>
-    );
-};
+        <p className="text-sm leading-relaxed text-slate-600">Interés en posgrado: <strong className="text-slate-800">{s.interesados} sí</strong> · {s.sinInteres} no{s.interesNoUtilizable > 0 && ` · ${s.interesNoUtilizable} sin respuesta válida`}. Las preferencias por área se calculan sobre {concentration.total} personas interesadas con área declarada.{s.areasFueraRuta > 0 && ` Se excluyen ${s.areasFueraRuta} áreas declaradas fuera de esa condición.`}</p>
+        <div className="grid items-start gap-5 xl:grid-cols-3">
+            <div className="xl:col-span-2"><Distribution title="Áreas de interés futuro" description="De mayor a menor preferencia. Escala común de 0 a 100%; la tabla incluye el porcentaje acumulado." data={areas} cumulative /></div>
+            <aside className="space-y-5">
+                <article className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6"><p className="text-xs font-semibold uppercase tracking-wider text-umss-azul">Lectura para la decisión</p><h3 className="mt-3 font-semibold text-slate-900">{concentration.total ? 'Temas que conviene estudiar primero' : 'Pendiente de datos'}</h3>{concentration.total ? <><ol className="mt-3 space-y-2 text-sm text-slate-700">{areas.slice(0, 2).map((area, i) => <li key={area.nombre} className="flex items-baseline gap-2"><span className="font-bold text-umss-azul">{i + 1}.</span>{area.nombre}</li>)}</ol><p className="mt-4 text-xs leading-relaxed text-slate-600">En conjunto reúnen {percentLabel(concentration.porcentaje)} de las preferencias declaradas. Para abrir un programa también deben evaluarse costos, cupos y demanda efectiva.</p></> : <p className="mt-3 text-sm text-slate-600">Carga las respuestas oficiales para identificar las áreas prioritarias.</p>}</article>
+                <details className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6"><summary className="cursor-pointer text-sm font-semibold text-slate-800">¿Se conoce qué nivel desean estudiar?</summary><p className="mt-3 text-sm leading-relaxed text-slate-600">La encuesta disponible recoge áreas de interés, pero no el nivel de posgrado deseado. Por eso esta vista no presenta una distribución de preferencias entre Maestría, Especialidad y Doctorado. La formación ya cursada se muestra aparte como antecedente.</p></details>
+            </aside>
+        </div>
+        <div className="border-t border-slate-200 pt-6"><div className="mb-4"><p className="text-xs font-semibold uppercase tracking-widest text-teal-700">Contexto de la muestra</p><h3 className="mt-2 text-lg font-semibold text-slate-900">Formación que ya han cursado</h3><p className="mt-1 text-sm text-slate-500">Antecedentes académicos: no representan el nivel que desean estudiar.</p></div><Distribution title="Nivel de posgrado cursado o en curso" description={`${levelsTotal} respuestas con un nivel reconocido. Esta base puede diferir de la de interés futuro.`} data={levels} tone="teal" /></div>
+        <details className="rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-600"><summary className="cursor-pointer font-medium text-slate-800">Cómo se calculan las preferencias</summary><p className="mt-3 leading-relaxed">Cada frecuencia relativa divide la cantidad de respuestas de un área entre el total con área declarada. El porcentaje acumulado sigue el orden de mayor a menor frecuencia. El umbral del 70% es orientativo y no demuestra por sí solo viabilidad técnica o financiera.</p></details>
+    </section>;
+}
