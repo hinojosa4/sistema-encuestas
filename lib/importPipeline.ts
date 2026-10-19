@@ -226,7 +226,7 @@ export function inspectRows(rows: Row[], type: SurveyType, unit: UnitPolicy = 's
         : ['nombre_empresa', 'tipo_organizacion', 'confianza_carrera_formadora'];
     const prepared: PreparedRow[] = [], issues: Issue[] = [];
     let emptyRows = 0, duplicates = 0;
-    const signatures = new Set<string>(), sourceIds = new Set<string>();
+    const sourceIds = new Map<string, string>();
     rows.forEach((raw, index) => {
         const hasAnswers = Object.entries(raw).some(([header, value]) => {
             const field = mappedField(header, type);
@@ -234,15 +234,14 @@ export function inspectRows(rows: Row[], type: SurveyType, unit: UnitPolicy = 's
         });
         if (!hasAnswers) { emptyRows++; return; }
         const signature = canonicalResponse(raw);
-        if (signatures.has(signature)) { duplicates++; return; }
-        signatures.add(signature);
         const row = prepareRow(raw, type, unit);
         const sourceRow = typeof raw.__rowNum__ === 'number' ? raw.__rowNum__ + 1 : index + 2;
         row.fila_origen = sourceRow;
         if (!empty(row.respuesta_origen_id)) {
             const id = String(row.respuesta_origen_id);
+            if (sourceIds.get(id) === signature) { duplicates++; return; }
             if (sourceIds.has(id)) errors.push(`El identificador ${id} aparece con respuestas diferentes (fila ${sourceRow}).`);
-            sourceIds.add(id);
+            sourceIds.set(id, signature);
         }
         prepared.push(row);
         for (const [field, status] of Object.entries(row.calidad_datos)) {
@@ -276,6 +275,20 @@ export function canonicalResponse(raw: Row) {
     return JSON.stringify(entries);
 }
 export const responseHash = (raw: Row) => sha256(canonicalResponse(raw));
+
+// Identifica un envio o su posicion en un archivo, nunca una persona ni sus respuestas.
+export function sourceRecordKey(row: Row, type: SurveyType): string | null {
+    const instrument = cleanString(row.instrumento_origen);
+    const raw = row.raw_data && typeof row.raw_data === 'object' && !Array.isArray(row.raw_data) ? row.raw_data as Row : {};
+    const id = cleanString(row.respuesta_origen_id ?? (type === 'encuesta_titulados'
+        ? Object.entries(raw).find(([header]) => normalizarTexto(header) === 'id')?.[1] : null));
+    if (instrument && id) return JSON.stringify(['envio-v2', type, instrument, id]);
+    if (typeof row.archivo_sha256 === 'string' && /^[a-f0-9]{64}$/.test(row.archivo_sha256) &&
+        !empty(row.hoja_origen) && Number.isInteger(row.fila_origen) && Number(row.fila_origen) >= 2) {
+        return JSON.stringify(['archivo-fila-v2', type, row.archivo_sha256, row.hoja_origen, row.fila_origen]);
+    }
+    return null;
+}
 
 export function normalizeStored(row: Row, type: SurveyType): Row {
     if (row.version_mapeo === MAPPING_VERSION) return row;

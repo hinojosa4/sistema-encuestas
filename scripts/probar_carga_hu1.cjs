@@ -109,6 +109,16 @@ test('mensajes al usuario no exponen detalles de Excel ni SQL', () => {
   assert.equal(messages.fileErrorMessage(new messages.UserFacingError('Selecciona otra hoja.')), 'Selecciona otra hoja.');
 });
 
+test('carga: distingue columnas, indice y tabla ausentes sin exponer errores internos', () => {
+  for (const code of ['42703', 'PGRST204']) {
+    assert.match(repository.databaseMessage({code, message:'correo privado y SQL interno'}), /CARGA-COLUMNAS/);
+    assert.match(repository.databaseMessage({code}), /habilitar_carga_validada\.sql/);
+  }
+  assert.match(repository.databaseMessage({code:'42P10'}), /CARGA-INDICE/);
+  assert.match(repository.databaseMessage({code:'PGRST205'}), /CARGA-TABLA/);
+  assert.doesNotMatch(repository.databaseMessage({code:'42703', message:'correo privado y SQL interno'}), /correo privado|SQL interno/);
+});
+
 test('HU2: concentracion calculada por conteos y umbral mayor a 70', () => {
   assert.equal(stats.calcularConcentracion([{nombre:'a',cantidad:4},{nombre:'b',cantidad:3},{nombre:'c',cantidad:3}]).superaUmbral, false);
   assert.equal(stats.calcularConcentracion([{nombre:'a',cantidad:5},{nombre:'b',cantidad:3},{nombre:'c',cantidad:2}]).superaUmbral, true);
@@ -502,18 +512,61 @@ function clientMock(stored, writeError = null) {
   return { client, writes };
 }
 test('guardado unico sin borrado: omite historicos y transmite el lote en una sola solicitud', async () => {
-  const hash = await p.responseHash(graduates.rows[0]);
-  const { client, writes } = clientMock([{ id:1, raw_data: graduates.rows[0] }]);
-  const result = await repository.savePreparedRows(client, graduates.type, [{ respuesta_hash: hash }, { respuesta_hash:'nuevo' }]);
+  const original = {raw_data: graduates.rows[0], respuesta_origen_id:String(graduates.rows[0].Id), instrumento_origen:'form-a'};
+  const { client, writes } = clientMock([{ id:1, ...original }]);
+  const result = await repository.savePreparedRows(client, graduates.type, [original, {...original, respuesta_origen_id:'nuevo'}]);
   assert.deepEqual(result, { inserted:1, skipped:1 });
   assert.equal(writes.length, 1);
   assert.equal(writes[0].options.ignoreDuplicates, true);
-  const changed = clientMock([{ raw_data: { Id: 7 } }]);
+  const changed = clientMock([{ raw_data: { Id: 7 }, instrumento_origen:'form-a' }]);
   await assert.rejects(repository.savePreparedRows(changed.client, graduates.type,
-    [{ respuesta_hash:'diferente', respuesta_origen_id:'7' }]), /ya registrada/);
+    [{ raw_data:{Id:7,Edad:'diferente'}, respuesta_origen_id:'7', instrumento_origen:'form-a' }]), /ya registrado/);
   assert.equal(changed.writes.length, 0);
   const failed = clientMock([], { code:'42501' });
   await assert.rejects(repository.savePreparedRows(failed.client, graduates.type, [{respuesta_hash:'nuevo'}]));
   const pages = clientMock(Array.from({length:2101},(_,id)=>({id})));
   assert.equal((await repository.readAllRows(pages.client, graduates.type)).length, 2101);
+});
+
+test('anonimato: conserva respuestas iguales sin ID en ambos instrumentos', async () => {
+  for (const book of [graduates, employers]) {
+    const raw={...book.rows[0]}; delete raw.Id;
+    const review=p.inspectRows([raw,{...raw}],book.type);
+    assert.equal(review.rows.length,2);
+    assert.equal(review.duplicates,0);
+    const mock=clientMock([{raw_data:raw,respuesta_hash:await p.responseHash(raw)}]);
+    const result=await repository.savePreparedRows(mock.client,book.type,review.rows);
+    assert.equal(result.inserted,2);
+    assert.notEqual(mock.writes[0].rows[0].respuesta_hash,mock.writes[0].rows[1].respuesta_hash);
+  }
+});
+
+test('envios: IDs diferentes conservan respuestas iguales; mismo origen e ID evita reimportar', async () => {
+  const raw=graduates.rows[0];
+  const review=p.inspectRows([raw,{...raw,Id:999999}],graduates.type);
+  assert.equal(review.rows.length,2);
+  const a={raw_data:{respuesta:'igual'},instrumento_origen:'form-a',respuesta_origen_id:'1'};
+  const b={...a,respuesta_origen_id:'2'};
+  const c={...a,instrumento_origen:'form-b'};
+  const first=clientMock([]);
+  await repository.savePreparedRows(first.client,graduates.type,[a,b,c]);
+  assert.equal(new Set(first.writes[0].rows.map(r=>r.respuesta_hash)).size,3);
+  const retry=clientMock(first.writes[0].rows);
+  assert.deepEqual(await repository.savePreparedRows(retry.client,graduates.type,[a,b,c]),{inserted:0,skipped:3});
+  assert.equal(retry.writes.length,0);
+});
+
+test('sin ID: reimportar el mismo archivo y fila se omite; filas iguales y archivos nuevos se conservan', async () => {
+  for (const type of [graduates.type,employers.type]) {
+    const a={raw_data:{respuesta:'igual'},archivo_sha256:'a'.repeat(64),hoja_origen:'Hoja',fila_origen:2};
+    const b={...a,fila_origen:3};
+    const mock=clientMock([]);
+    await repository.savePreparedRows(mock.client,type,[a,b]);
+    assert.equal(mock.writes[0].rows.length,2);
+    assert.notEqual(mock.writes[0].rows[0].respuesta_hash,mock.writes[0].rows[1].respuesta_hash);
+    const retry=clientMock(mock.writes[0].rows);
+    assert.deepEqual(await repository.savePreparedRows(retry.client,type,[a,b]),{inserted:0,skipped:2});
+    const next=clientMock(mock.writes[0].rows);
+    assert.equal((await repository.savePreparedRows(next.client,type,[{...a,archivo_sha256:'b'.repeat(64)}])).inserted,1);
+  }
 });

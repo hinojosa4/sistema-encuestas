@@ -1,6 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { responseHash, type Row, type SurveyType } from './importPipeline';
-import { normalizarTexto } from './dataMappers';
+import { canonicalResponse, sha256, sourceRecordKey, type Row, type SurveyType } from './importPipeline';
 import { UserFacingError } from './userMessages';
 
 export async function readAllRows(client: SupabaseClient, table: SurveyType, columns = '*'): Promise<Row[]> {
@@ -14,27 +13,27 @@ export async function readAllRows(client: SupabaseClient, table: SurveyType, col
         if (page.length < size) return rows;
     }
 }
-export async function existingHashes(rows: Row[]): Promise<Set<string>> {
-    return new Set(await Promise.all(rows.map(row => {
-        if (typeof row.respuesta_hash === 'string') return row.respuesta_hash;
-        if (row.raw_data && typeof row.raw_data === 'object' && !Array.isArray(row.raw_data)) return responseHash(row.raw_data as Row);
-        return '';
-    })));
-}
-export async function savePreparedRows(client: SupabaseClient, table: SurveyType, payload: (Row & { respuesta_hash: string })[]) {
-    const stored = await readAllRows(client, table, 'id,raw_data,respuesta_hash,respuesta_origen_id,instrumento_origen');
-    const hashes = await existingHashes(stored);
-    const fresh = payload.filter(row => !hashes.has(row.respuesta_hash));
-    if (table === 'encuesta_titulados') {
-        const ids = new Set(stored.flatMap(row => {
-            const raw = row.raw_data && typeof row.raw_data === 'object' ? row.raw_data as Row : {};
-            const id = row.respuesta_origen_id ?? Object.entries(raw).find(([h]) => normalizarTexto(h) === 'id')?.[1];
-            return id == null || String(id).trim() === '' ? [] : [`${String(row.instrumento_origen ?? 'legado')}:${String(id)}`];
-        }));
-        if (fresh.some(row => row.respuesta_origen_id != null &&
-            (ids.has(`${String(row.instrumento_origen ?? 'legado')}:${String(row.respuesta_origen_id)}`) || ids.has(`legado:${String(row.respuesta_origen_id)}`)))) {
-            throw new UserFacingError('Hay una respuesta ya registrada con información diferente. Revisa el archivo con el docente antes de volver a cargarlo. No se reemplazó ningún dato.');
+export async function savePreparedRows(client: SupabaseClient, table: SurveyType, payload: Row[]) {
+    const stored = await readAllRows(client, table, 'id,raw_data,respuesta_origen_id,instrumento_origen,archivo_sha256,hoja_origen,fila_origen');
+    const known = new Map<string, Row>();
+    for (const row of stored) {
+        const key = sourceRecordKey(row, table);
+        if (key) known.set(key, row);
+    }
+    const fresh: Row[] = [];
+    for (const row of payload) {
+        const key = sourceRecordKey(row, table);
+        const previous = key ? known.get(key) : undefined;
+        if (previous) {
+            if (!previous.raw_data || !row.raw_data ||
+                canonicalResponse(previous.raw_data as Row) !== canonicalResponse(row.raw_data as Row)) {
+                throw new UserFacingError('Hay un envío ya registrado con información diferente. Revisa el archivo con el docente. No se reemplazó ningún dato.');
+            }
+            continue;
         }
+        // Sin origen identificable cada fila se conserva, aunque su contenido sea igual.
+        fresh.push({ ...row, respuesta_hash: await sha256(key ?? `sin-identificador:${crypto.randomUUID()}`) });
+        if (key) known.set(key, row);
     }
     if (!fresh.length) return { inserted: 0, skipped: payload.length };
     if (new TextEncoder().encode(JSON.stringify(fresh)).byteLength > 8 * 1024 * 1024) throw new UserFacingError('El archivo contiene demasiada información para guardarla de una vez. Divídelo en archivos más pequeños y vuelve a intentar.');
@@ -47,7 +46,9 @@ export async function savePreparedRows(client: SupabaseClient, table: SurveyType
 export function databaseMessage(error: unknown): string {
     if (error instanceof UserFacingError) return error.message;
     const info = error as { code?: string; message?: string };
-    if (['42703', '42P10', 'PGRST204', 'PGRST205'].includes(info?.code ?? '')) return 'El sistema necesita una actualización antes de guardar. Comunícalo a quien administra la aplicación. Los datos anteriores se conservan.';
+    if (info?.code === '42703' || info?.code === 'PGRST204') return 'Faltan columnas necesarias para la carga. El responsable de Supabase debe ejecutar scripts/habilitar_carga_validada.sql. Referencia: CARGA-COLUMNAS.';
+    if (info?.code === '42P10') return 'Falta el índice para evitar respuestas duplicadas. El responsable de Supabase debe ejecutar scripts/habilitar_carga_validada.sql. Referencia: CARGA-INDICE.';
+    if (info?.code === 'PGRST205') return 'La tabla de encuestas no está disponible en la API. Revisa el proyecto conectado y el esquema en Supabase. Referencia: CARGA-TABLA.';
     if (info?.code === '42501') return 'Tu sesión no tiene autorización para completar esta acción. Solicita acceso a quien administra la aplicación. No se borró ningún registro.';
     if (/api key|jwt/i.test(info?.message ?? '')) return 'El sistema no pudo conectarse al almacenamiento. Si el problema continúa, comunícalo a quien administra la aplicación.';
     if (info?.code === '23505') return 'Se detectó una respuesta duplicada o una carga simultánea. Actualice la vista e intente nuevamente.';
