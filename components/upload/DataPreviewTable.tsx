@@ -1,12 +1,22 @@
 // components/upload/DataPreviewTable.tsx
 import React from 'react';
 import { Upload, Loader2 } from 'lucide-react';
+import { fieldLabel } from '@/lib/surveyFields';
+
+const labels: Record<string, string> = {
+    anios_vida_profesional_normalizados: 'Experiencia válida (años)', tiempo_desempleado_meses: 'Desempleo válido (meses)',
+    anios_vida_profesional: 'Experiencia (años)', tiempo_desempleado: 'Desempleo (meses)',
+    anios_vida_profesional_original: 'Experiencia original', tiempo_desempleado_original: 'Desempleo original',
+    situacion_laboral_actual: 'Situación laboral', sector_empresa_trabajo: 'Sector de trabajo',
+    empresa_trabajo_actual: 'Empresa', rubro_empresa_trabajo: 'Rubro', respuesta_origen_id: 'Identificador original', fila_origen: 'Fila de origen',
+};
 
 interface DataPreviewTableProps {
     headers: string[];
-    dataPreview: any[];
+    dataPreview: Record<string, unknown>[];
     loading: boolean;
     onConfirm: () => void;
+    canSave?: boolean;
 }
 
 export const DataPreviewTable: React.FC<DataPreviewTableProps> = ({
@@ -14,6 +24,7 @@ export const DataPreviewTable: React.FC<DataPreviewTableProps> = ({
     dataPreview,
     loading,
     onConfirm,
+    canSave = true,
 }) => {
     if (dataPreview.length === 0) return null;
 
@@ -25,13 +36,13 @@ export const DataPreviewTable: React.FC<DataPreviewTableProps> = ({
                         Vista Previa de Datos ({dataPreview.length} registros detectados)
                     </h3>
                     <p className="text-[11px] sm:text-xs text-slate-500">
-                        Comprobación inicial de las primeras 5 filas antes del almacenamiento definitivo.
+                        Primeras 5 respuestas. Los valores vacíos no se convierten en cero.
                     </p>
                 </div>
 
                 <button
                     onClick={onConfirm}
-                    disabled={loading}
+                    disabled={loading || !canSave}
                     className="w-full sm:w-auto bg-umss-azul hover:bg-blue-900 text-white font-medium px-5 py-2.5 rounded-lg shadow transition-colors flex items-center justify-center gap-2 text-xs sm:text-sm disabled:opacity-50"
                 >
                     {loading ? (
@@ -42,7 +53,7 @@ export const DataPreviewTable: React.FC<DataPreviewTableProps> = ({
                     ) : (
                         <>
                             <Upload className="h-4 w-4" />
-                            <span>Guardar</span>
+                            <span>Agregar respuestas validadas</span>
                         </>
                     )}
                 </button>
@@ -54,7 +65,7 @@ export const DataPreviewTable: React.FC<DataPreviewTableProps> = ({
                         <tr>
                             {headers.map((h, idx) => (
                                 <th key={idx} className="px-3 py-2 border-r border-slate-200 whitespace-nowrap">
-                                    {h}
+                                    {labels[h] ?? fieldLabel(h)}
                                 </th>
                             ))}
                         </tr>

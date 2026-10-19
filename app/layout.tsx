@@ -2,6 +2,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import Navbar from "@/components/Navbar";
+import { NavigationAccessProvider } from '@/components/auth/NavigationAccess';
 
 export const metadata: Metadata = {
   title: "Sistema de Análisis de Mercado - UMSS ARCUSUR",
@@ -22,6 +23,7 @@ export default function RootLayout({
   return (
     <html lang="es" className="h-full">
       <body className="bg-slate-50 min-h-screen text-slate-800 flex flex-col font-sans overflow-x-hidden antialiased">
+        <NavigationAccessProvider>
         <Navbar />
         <main className="flex-grow w-full max-w-full">
           {children}
@@ -29,6 +31,7 @@ export default function RootLayout({
         <footer className="bg-white border-t border-slate-200 py-4 px-4 text-center text-xs text-slate-500">
           Facultad de Ciencias y Tecnología · Universidad Mayor de San Simón · Cochabamba, Bolivia
         </footer>
+        </NavigationAccessProvider>
       </body>
     </html>
   );
