@@ -21,7 +21,7 @@ export default function HomePage() {
         </h2>
 
         <p className="text-xs sm:text-sm md:text-base text-slate-600 max-w-2xl mx-auto mb-6 sm:mb-8 leading-relaxed">
-          Plataforma analítica para la recolección, limpieza computacional y modelado estadístico
+          Plataforma analítica para la importación, revisión de calidad y análisis estadístico
           del perfil laboral de titulados y demandas del sector productivo.
         </p>
 
@@ -54,12 +54,12 @@ export default function HomePage() {
               Encuesta a Titulados de Grado
             </h3>
             <p className="text-xs sm:text-sm text-slate-600 mb-4 leading-relaxed">
-              Analiza la antigüedad de egreso, tasa de inserción laboral temprana, áreas prioritarias de formación continua (IA, Ciberseguridad, Software) y mecanismos de financiamiento.
+              Analiza la experiencia profesional declarada, ocupación actual, plazos de primer empleo, áreas de formación continua y mecanismos de financiamiento.
             </p>
             <ul className="text-xs text-slate-600 space-y-2 mb-6">
               <li className="flex items-start gap-2">
                 <CheckCircle className="h-4 w-4 text-emerald-600 flex-shrink-0 mt-0.5" />
-                <span>Estadísticos descriptivos (media y desviación estándar de antigüedad)</span>
+                <span>Estadísticos descriptivos de experiencia, con respuestas válidas y excluidas</span>
               </li>
               <li className="flex items-start gap-2">
                 <CheckCircle className="h-4 w-4 text-emerald-600 flex-shrink-0 mt-0.5" />

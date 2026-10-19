@@ -1,3 +1,4 @@
+import { inspectHeaders } from './importPipeline';
 // lib/fileValidation.ts
 
 export interface ValidationResult {
@@ -11,6 +12,7 @@ export const MAX_FILE_SIZE_MB = 10;
  * Valida el tamaño y extensión del archivo antes de leerlo.
  */
 export function validarArchivo(file: File): ValidationResult {
+    if (file.size === 0) return { isValid: false, errorMessage: 'El archivo está vacío.' };
     const extension = file.name.split('.').pop()?.toLowerCase();
     const allowedExtensions = ['xlsx', 'xls', 'csv'];
 
@@ -39,43 +41,6 @@ export function validarCorrespondenciaEncuesta(
     headers: string[],
     tipoEncuesta: 'encuesta_titulados' | 'encuesta_empleadores'
 ): ValidationResult {
-    const headersTexto = headers.join(' ').toLowerCase();
-
-    if (tipoEncuesta === 'encuesta_titulados') {
-        const tieneTerminosTitulado =
-            headersTexto.includes('egreso') ||
-            headersTexto.includes('posgrado') ||
-            headersTexto.includes('edad') ||
-            headersTexto.includes('titulado') ||
-            headersTexto.includes('desempleado') ||
-            headersTexto.includes('vida profesional');
-
-        if (!tieneTerminosTitulado) {
-            return {
-                isValid: false,
-                errorMessage:
-                    'El archivo cargado no parece corresponder a la "Encuesta a Titulados". Verifique haber seleccionado la categoría correcta.',
-            };
-        }
-    }
-
-    if (tipoEncuesta === 'encuesta_empleadores') {
-        const tieneTerminosEmpleador =
-            headersTexto.includes('empresa') ||
-            headersTexto.includes('organizacion') ||
-            headersTexto.includes('rubro') ||
-            headersTexto.includes('empleador') ||
-            headersTexto.includes('contratado') ||
-            headersTexto.includes('talento');
-
-        if (!tieneTerminosEmpleador) {
-            return {
-                isValid: false,
-                errorMessage:
-                    'El archivo cargado no parece corresponder a la "Encuesta a Empleadores". Verifique haber seleccionado la categoría correcta.',
-            };
-        }
-    }
-
-    return { isValid: true };
+    const result = inspectHeaders(headers, tipoEncuesta);
+    return result.errors.length ? { isValid: false, errorMessage: result.errors.join(' ') } : { isValid: true };
 }

@@ -39,3 +39,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Archivos de trabajo y encuestas originales con datos personales
+/tmp/
+/datos/*.xlsx
+/datos/*.xls
+/datos/*.csv

@@ -1,58 +1,69 @@
 // lib/dataMappers.ts
 
-/**
- * Convierte respuestas en escala Likert textual de Google Forms a valor numérico (1 - 5).
- * - "Totalmente de acuerdo" -> 5
- * - "Parcialmente de acuerdo" / "De acuerdo" -> 3
- * - "Totalmente desacuerdo" / "En desacuerdo" -> 1
- * - "No sabe" -> null (se excluye de promedios para no sesgar la métrica)
+/** Escalas nativas independientes; los puntajes de presentacion se transforman a 1-5.
+ * Las categorias originales y los codigos ordinales se conservan en importPipeline.
  */
-export function parseLikertValue(val: any): number | null {
-    if (val === null || val === undefined || val === '') return null;
-    if (typeof val === 'number') {
-        return isNaN(val) ? null : val;
+export type Escala = 'acuerdo' | 'empleador' | 'satisfaccion' | 'importancia';
+
+export function normalizarTexto(value: unknown): string {
+    return String(value ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase().replace(/@/g, 'o').replace(/[^a-z0-9]+/g, ' ').trim();
+}
+
+export function codigoOrdinal(value: unknown, escala: Escala = 'acuerdo'): number | null {
+    const opciones: Record<Escala, string[]> = {
+        acuerdo: ['totalmente en desacuerdo', 'en desacuerdo', 'de acuerdo', 'totalmente de acuerdo'],
+        empleador: ['totalmente desacuerdo', 'parcialmente de acuerdo', 'totalmente de acuerdo'],
+        satisfaccion: ['insatisfecho', 'algo satisfecho', 'satisfecho'],
+        importancia: ['no es importante', 'poco importante', 'importante', 'muy importante'],
+    };
+    const index = opciones[escala].indexOf(normalizarTexto(value));
+    return index < 0 ? null : index + 1;
+}
+
+// Puntaje transformado 1-5 para conservar compatibilidad con los radares.
+// El codigo nativo y la categoria original se conservan por separado en la carga.
+export function parseLikertValue(val: unknown, escala: Escala = 'acuerdo'): number | null {
+    const codigo = codigoOrdinal(val, escala);
+    if (codigo !== null) {
+        const niveles = escala === 'empleador' || escala === 'satisfaccion' ? 3 : 4;
+        return Number((1 + (codigo - 1) * 4 / (niveles - 1)).toFixed(4));
     }
-
-    const str = String(val).trim().toLowerCase();
-
-    // Si viene directamente como número en string ("5", "4", "3", etc.)
-    const parsedNum = parseFloat(str);
-    if (!isNaN(parsedNum)) {
-        return parsedNum;
+    if (typeof val === 'number') return Number.isFinite(val) && val >= 1 && val <= 5 ? val : null;
+    if (typeof val === 'string' && /^\s*[1-5](?:\.\d+)?\s*$/.test(val)) {
+        const numero = Number(val);
+        return numero <= 5 ? numero : null;
     }
-
-    if (str.includes('totalmente de acuerdo')) return 5;
-    if (str.includes('parcialmente de acuerdo') || str.includes('de acuerdo')) return 3;
-    if (str.includes('totalmente desacuerdo') || str.includes('en desacuerdo') || str.includes('desacuerdo')) return 1;
-    if (str.includes('no sabe') || str.includes('desconoce')) return null;
-
     return null;
 }
+
+
 
 /**
  * Normaliza una cadena para comparación flexible (sin tildes, minúsculas, sin signos de puntuación).
  */
 function cleanText(text: string): string {
-    return text
-        .toLowerCase()
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '') // Quitar tildes
-        .replace(/[¿?()1234567890\.\-_]/g, ' ') // Quitar signos y números
-        .replace(/\s+/g, ' ')
-        .trim();
+    return normalizarTexto(text).replace(/\d+/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
 /**
  * Mapea una fila cruda (de Excel o CSV de Google Forms) a las columnas estructuradas de `encuesta_empleadores`.
  */
-export function mapearFilaEmpleador(row: Record<string, any>): Record<string, any> {
-    const item: Record<string, any> = {
+export function mapearFilaEmpleador(row: Record<string, unknown>): Record<string, unknown> {
+    const item: Record<string, unknown> = {
         raw_data: row,
     };
 
     for (const [key, rawVal] of Object.entries(row)) {
         const val = typeof rawVal === 'string' ? rawVal.trim() : rawVal;
         const normKey = cleanText(key);
+        // Columnas estructuradas se resuelven antes que los patrones del formulario.
+        if (['correo_electronico', 'nombre_empresa', 'tipo_organizacion', 'tamano_organizacion', 'rubro_sector', 'ha_contratado_sistemas', 'probabilidad_incorporacion_futura', 'nivel_formacion_demandado', 'medio_convocatoria', 'cargos_desempenados', 'areas_emergentes_importantes', 'herramientas_tecnologicas_demandadas', 'habilidades_fundamentales', 'confianza_carrera_formadora', 'consistencia_titulo_competencias', 'consulta_regular_opinion', 'conocimiento_perfil_egreso', 'coherencia_perfil_desempeno', 'formacion_desempeno_destacado', 'incorporacion_necesidades_practicas', 'evidencia_competencias_laborales', 'valores_etica_responsabilidad', 'participacion_evaluacion_desempeno', 'vinculos_oportunidades_laborales', 'participacion_vinculacion_entorno', 'participacion_difusion_pasantias', 'participacion_intercambio_conocimiento', 'consulta_retroalimentacion_plan', 'consulta_pertinencia_formacion', 'busqueda_talento_umss', 'consulta_procesos_autoevaluacion'].includes(key)) {
+            item[key] = ['confianza_carrera_formadora', 'consistencia_titulo_competencias', 'consulta_regular_opinion', 'conocimiento_perfil_egreso', 'coherencia_perfil_desempeno', 'formacion_desempeno_destacado', 'incorporacion_necesidades_practicas', 'evidencia_competencias_laborales', 'valores_etica_responsabilidad', 'participacion_evaluacion_desempeno', 'vinculos_oportunidades_laborales', 'participacion_vinculacion_entorno', 'participacion_difusion_pasantias', 'participacion_intercambio_conocimiento', 'consulta_retroalimentacion_plan', 'consulta_pertinencia_formacion', 'busqueda_talento_umss', 'consulta_procesos_autoevaluacion'].includes(key)
+                ? parseLikertValue(val, 'empleador') : val;
+            continue;
+        }
+
 
         // 0. Datos Generales
         if (normKey.includes('correo') || normKey.includes('email')) {
@@ -86,64 +97,44 @@ export function mapearFilaEmpleador(row: Record<string, any>): Record<string, an
 
             // 2. Formación y Perfil Profesional (Likert)
         } else if (normKey.includes('brinda confianza')) {
-            item.confianza_carrera_formadora = parseLikertValue(val);
+            item.confianza_carrera_formadora = parseLikertValue(val, 'empleador');
         } else if (normKey.includes('consistente con el nivel de formacion') || normKey.includes('consistente con el nivel')) {
-            item.consistencia_titulo_competencias = parseLikertValue(val);
+            item.consistencia_titulo_competencias = parseLikertValue(val, 'empleador');
         } else if (normKey.includes('consultan regularmente nuestra opinion') || normKey.includes('consultan regularmente')) {
-            item.consulta_regular_opinion = parseLikertValue(val);
+            item.consulta_regular_opinion = parseLikertValue(val, 'empleador');
         } else if (normKey.includes('conozco el perfil profesional')) {
-            item.conocimiento_perfil_egreso = parseLikertValue(val);
+            item.conocimiento_perfil_egreso = parseLikertValue(val, 'empleador');
         } else if (normKey.includes('coherente con el desempeno laboral') || normKey.includes('coherente con el desempeno')) {
-            item.coherencia_perfil_desempeno = parseLikertValue(val);
+            item.coherencia_perfil_desempeno = parseLikertValue(val, 'empleador');
         } else if (normKey.includes('desempeno destacado')) {
-            item.formacion_desempeno_destacado = parseLikertValue(val);
+            item.formacion_desempeno_destacado = parseLikertValue(val, 'empleador');
         } else if (normKey.includes('incorpora las necesidades del sector laboral') || normKey.includes('formacion practica pasantias')) {
-            item.incorporacion_necesidades_practicas = parseLikertValue(val);
+            item.incorporacion_necesidades_practicas = parseLikertValue(val, 'empleador');
         } else if (normKey.includes('evidencia el desarrollo de competencias') || normKey.includes('comunicacion efectiva')) {
-            item.evidencia_competencias_laborales = parseLikertValue(val);
+            item.evidencia_competencias_laborales = parseLikertValue(val, 'empleador');
         } else if (normKey.includes('demuestran valores y actitudes') || normKey.includes('etica profesional')) {
-            item.valores_etica_responsabilidad = parseLikertValue(val);
+            item.valores_etica_responsabilidad = parseLikertValue(val, 'empleador');
         } else if (normKey.includes('recopilacion de informacion evaluacion o retroalimentacion')) {
-            item.participacion_evaluacion_desempeno = parseLikertValue(val);
+            item.participacion_evaluacion_desempeno = parseLikertValue(val, 'empleador');
 
             // 3. Relación de la Carrera con la Organización (Likert)
         } else if (normKey.includes('mantiene vinculos con organizaciones')) {
-            item.vinculos_oportunidades_laborales = parseLikertValue(val);
+            item.vinculos_oportunidades_laborales = parseLikertValue(val, 'empleador');
         } else if (normKey.includes('vinculacion con el entorno laboral y tecnologico')) {
-            item.participacion_vinculacion_entorno = parseLikertValue(val);
+            item.participacion_vinculacion_entorno = parseLikertValue(val, 'empleador');
         } else if (normKey.includes('difusion de oportunidades laborales convocatorias')) {
-            item.participacion_difusion_pasantias = parseLikertValue(val);
+            item.participacion_difusion_pasantias = parseLikertValue(val, 'empleador');
         } else if (normKey.includes('intercambio de conocimientos experiencias') || normKey.includes('profesionales del sector tecnologico')) {
-            item.participacion_intercambio_conocimiento = parseLikertValue(val);
+            item.participacion_intercambio_conocimiento = parseLikertValue(val, 'empleador');
         } else if (normKey.includes('proposito de retroalimentar el perfil') || normKey.includes('retroalimentar el perfil profesional')) {
-            item.consulta_retroalimentacion_plan = parseLikertValue(val);
+            item.consulta_retroalimentacion_plan = parseLikertValue(val, 'empleador');
         } else if (normKey.includes('pertinencia de la formacion impartida')) {
-            item.consulta_pertinencia_formacion = parseLikertValue(val);
+            item.consulta_pertinencia_formacion = parseLikertValue(val, 'empleador');
         } else if (normKey.includes('fuente de busqueda de talento') || normKey.includes('recurrimos a la universidad mayor de san simon')) {
-            item.busqueda_talento_umss = parseLikertValue(val);
+            item.busqueda_talento_umss = parseLikertValue(val, 'empleador');
         } else if (normKey.includes('consultado periodicamente') || normKey.includes('autoevaluacion y mejora continua')) {
-            item.consulta_procesos_autoevaluacion = parseLikertValue(val);
+            item.consulta_procesos_autoevaluacion = parseLikertValue(val, 'empleador');
 
-            // Si la columna ya viene con el nombre limpio en snake_case
-        } else if (
-            [
-                'correo_electronico', 'nombre_empresa', 'tipo_organizacion', 'tamano_organizacion', 'rubro_sector',
-                'ha_contratado_sistemas', 'probabilidad_incorporacion_futura', 'nivel_formacion_demandado',
-                'medio_convocatoria', 'cargos_desempenados', 'areas_emergentes_importantes', 'herramientas_tecnologicas_demandadas',
-                'habilidades_fundamentales', 'confianza_carrera_formadora', 'consistencia_titulo_competencias',
-                'consulta_regular_opinion', 'conocimiento_perfil_egreso', 'coherencia_perfil_desempeno',
-                'formacion_desempeno_destacado', 'incorporacion_necesidades_practicas', 'evidencia_competencias_laborales',
-                'valores_etica_responsabilidad', 'participacion_evaluacion_desempeno', 'vinculos_oportunidades_laborales',
-                'participacion_vinculacion_entorno', 'participacion_difusion_pasantias', 'participacion_intercambio_conocimiento',
-                'consulta_retroalimentacion_plan', 'consulta_pertinencia_formacion', 'busqueda_talento_umss', 'consulta_procesos_autoevaluacion'
-            ].includes(key)
-        ) {
-            item[key] = key.includes('confianza') || key.includes('consistencia') || key.includes('consulta') ||
-                key.includes('conocimiento') || key.includes('coherencia') || key.includes('formacion') ||
-                key.includes('incorporacion') || key.includes('evidencia') || key.includes('valores') ||
-                key.includes('participacion') || key.includes('vinculos') || key.includes('busqueda')
-                ? parseLikertValue(val)
-                : val;
         }
     }
 
@@ -153,8 +144,8 @@ export function mapearFilaEmpleador(row: Record<string, any>): Record<string, an
 /**
  * Normaliza filas para encuesta de titulados (alineada 100% con Supabase y Microsoft Forms).
  */
-export function mapearFilaTitulado(row: Record<string, any>): Record<string, any> {
-    const item: Record<string, any> = {
+export function mapearFilaTitulado(row: Record<string, unknown>): Record<string, unknown> {
+    const item: Record<string, unknown> = {
         raw_data: row, // Respaldo íntegro original
     };
 
@@ -175,6 +166,13 @@ export function mapearFilaTitulado(row: Record<string, any>): Record<string, any
 
         const val = typeof rawVal === 'string' ? rawVal.trim() : rawVal;
         const normKey = cleanText(key);
+        // Columnas estructuradas se resuelven antes que los patrones del formulario.
+        if (['edad', 'genero', 'ha_realizado_posgrado', 'nivel_posgrado_cursado', 'institucion_posgrado_cursado', 'financiamiento_posgrado_cursado', 'nombre_programa_cursado', 'interes_futuro_posgrado', 'area_interes_posgrado', 'institucion_optaria_posgrado', 'opinion_posgrado_fcyt', 'anios_vida_profesional', 'tiempo_desempleado', 'situacion_laboral_actual', 'empresa_trabajo_actual', 'rubro_empresa_trabajo', 'otro_rubro_trabajo', 'sector_empresa_trabajo', 'departamento_trabajo', 'area_empresa_trabajo', 'otra_area_trabajo', 'cargo_actual', 'otro_cargo_actual', 'pertinencia_laboral_carrera', 'razon_desempleo', 'origen_emprendimiento', 'tipo_entregable_negocio', 'financiamiento_negocio', 'satisfaccion_negocio', 'importancia_formacion_negocio', 'es_primer_empleo', 'tiempo_conseguir_primer_empleo', 'cantidad_empleos_desempenados', 'satisfaccion_global_carrera', 'concordancia_formacion_requerimientos', 'aspectos_utilidad', 'aspectos_mejora', 'asignaturas_ventaja_competitiva', 'asignaturas_menos_utiles', 'interes_red_contactos', 'email_contacto', 'telefono_contacto', 'linkedin_url', 'antiguedad_trabajo_actual', 'medio_obtencion_trabajo', 'remuneracion_mensual', 'ha_trabajado_antes', 'otra_asignatura_ventaja', 'otra_asignatura_menos_util'].includes(key)) {
+            item[key] = ['opinion_posgrado_fcyt', 'pertinencia_laboral_carrera', 'satisfaccion_negocio', 'importancia_formacion_negocio', 'satisfaccion_global_carrera', 'concordancia_formacion_requerimientos'].includes(key)
+                ? parseLikertValue(val, key === 'satisfaccion_negocio' ? 'satisfaccion' : key === 'importancia_formacion_negocio' ? 'importancia' : 'acuerdo') : val;
+            continue;
+        }
+
 
         // 0. Datos Generales
         if (normKey.includes('edad que tiene') || normKey === 'edad') {
@@ -204,14 +202,14 @@ export function mapearFilaTitulado(row: Record<string, any>): Record<string, any
 
             // 2. Tiempos y Situación Laboral
         } else if ((normKey.includes('anos de vida profesional') || normKey.includes('anios de vida profesional') || normKey.includes('vida profesional')) && !normKey.includes('asignaturas')) {
-            item.anios_vida_profesional = parseFloat(String(val)) || 0;
+            item.anios_vida_profesional = Number.isFinite(Number(String(val).replace(',', '.'))) && String(val).trim() !== '' ? Number(String(val).replace(',', '.')) : null;
         } else if (normKey.includes('tiempo en que se ha encontrado desempleado') || normKey.includes('tiempo desempleado')) {
-            item.tiempo_desempleado = parseFloat(String(val)) || 0;
+            item.tiempo_desempleado = Number.isFinite(Number(String(val).replace(',', '.'))) && String(val).trim() !== '' ? Number(String(val).replace(',', '.')) : null;
         } else if (normKey.includes('describe su situacion laboral') || normKey.includes('situacion laboral actual')) {
             item.situacion_laboral_actual = val;
 
             // Rama A: Empresa
-        } else if (normKey.includes('donde trabaja actualmente') || normKey.includes('empresa trabajo actual')) {
+        } else if ((normKey.includes('nombre de la empresa') && normKey.includes('trabaja')) || normKey === 'empresa trabajo actual') {
             item.empresa_trabajo_actual = val;
         } else if (normKey.includes('rubro de la organizacion') || normKey.includes('rubro empresa')) {
             item.rubro_empresa_trabajo = val;
@@ -223,7 +221,7 @@ export function mapearFilaTitulado(row: Record<string, any>): Record<string, any
             item.departamento_trabajo = val;
         } else if (normKey.includes('area dentro de la organizacion') || normKey.includes('area empresa')) {
             item.area_empresa_trabajo = val;
-        } else if (normKey.includes('otra area')) {
+        } else if (normKey.includes('otra area') || normKey.includes('otro area')) {
             item.otra_area_trabajo = val;
         } else if (normKey.includes('cargo que desempena') || normKey.includes('cargo actual')) {
             item.cargo_actual = val;
@@ -231,6 +229,17 @@ export function mapearFilaTitulado(row: Record<string, any>): Record<string, any
             item.otro_cargo_actual = val;
         } else if (normKey.includes('pertinentes a su formacion') || normKey.includes('pertinencia laboral')) {
             item.pertinencia_laboral_carrera = parseLikertValue(val);
+
+        } else if (normKey.includes('antiguedad tiene en su actual trabajo') || normKey === 'antiguedad trabajo actual') {
+            item.antiguedad_trabajo_actual = val;
+        } else if (normKey.includes('medio obtuvo el trabajo') || normKey === 'medio obtencion trabajo') {
+            item.medio_obtencion_trabajo = val;
+        } else if (normKey.includes('remuneracion promedio mensual') || normKey === 'remuneracion mensual') {
+            item.remuneracion_mensual = val;
+        } else if (normKey.includes('ha tenido algun trabajo antes') || normKey === 'ha trabajado antes') {
+            item.ha_trabajado_antes = val;
+        } else if (/^otra asignatura(?:\s*\d+)?$/.test(normKey)) {
+            item[/[:_]\s*1$/.test(trimmedKey) ? 'otra_asignatura_menos_util' : 'otra_asignatura_ventaja'] = val;
 
             // Rama B: Desempleo
         } else if (normKey.includes('razon por la que actualmente no trabaja') || normKey.includes('razon desempleo')) {
@@ -244,9 +253,9 @@ export function mapearFilaTitulado(row: Record<string, any>): Record<string, any
         } else if (normKey.includes('financiamiento externo para su negocio') || normKey.includes('financiamiento negocio')) {
             item.financiamiento_negocio = val;
         } else if (normKey.includes('rendimiento actual de su negocio') || normKey.includes('satisfaccion negocio')) {
-            item.satisfaccion_negocio = parseLikertValue(val);
+            item.satisfaccion_negocio = parseLikertValue(val, 'satisfaccion');
         } else if (normKey.includes('formacion en ingenieria en sistemas para iniciar') || normKey.includes('importancia formacion negocio')) {
-            item.importancia_formacion_negocio = parseLikertValue(val);
+            item.importancia_formacion_negocio = parseLikertValue(val, 'importancia');
 
             // 3. Inserción Laboral
         } else if (normKey.includes('demoro en conseguir') || normKey.includes('tiempo conseguir primer trabajo') || normKey.includes('tiempo conseguir primer empleo')) {
@@ -280,25 +289,6 @@ export function mapearFilaTitulado(row: Record<string, any>): Record<string, any
         } else if (normKey.includes('linkedin')) {
             item.linkedin_url = val;
 
-            // 6. Si el archivo ya viene con las columnas exactas de la base de datos
-        } else if ([
-            'edad', 'genero', 'ha_realizado_posgrado', 'nivel_posgrado_cursado',
-            'institucion_posgrado_cursado', 'financiamiento_posgrado_cursado',
-            'nombre_programa_cursado', 'interes_futuro_posgrado', 'area_interes_posgrado',
-            'institucion_optaria_posgrado', 'opinion_posgrado_fcyt', 'anios_vida_profesional',
-            'tiempo_desempleado', 'situacion_laboral_actual', 'empresa_trabajo_actual',
-            'rubro_empresa_trabajo', 'otro_rubro_trabajo', 'sector_empresa_trabajo',
-            'departamento_trabajo', 'area_empresa_trabajo', 'otra_area_trabajo',
-            'cargo_actual', 'otro_cargo_actual', 'pertinencia_laboral_carrera',
-            'razon_desempleo', 'origen_emprendimiento', 'tipo_entregable_negocio',
-            'financiamiento_negocio', 'satisfaccion_negocio', 'importancia_formacion_negocio',
-            'es_primer_empleo', 'tiempo_conseguir_primer_empleo', 'cantidad_empleos_desempenados',
-            'satisfaccion_global_carrera', 'concordancia_formacion_requerimientos',
-            'aspectos_utilidad', 'aspectos_mejora', 'asignaturas_ventaja_competitiva',
-            'asignaturas_menos_utiles', 'interes_red_contactos', 'email_contacto',
-            'telefono_contacto', 'linkedin_url'
-        ].includes(key)) {
-            item[key] = val;
         }
     }
 

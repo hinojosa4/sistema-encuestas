@@ -3,129 +3,63 @@
 
 import React, { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
-import {
-    calcularEstadisticasUnivariadas,
-    calcularDistribucionFrecuencias,
-    calcularChiCuadrada,
-} from '@/lib/statistics';
+import { resumirFormacion, resumirFinanciamiento, filasCruceFinanciamiento } from '@/lib/postgraduate';
 import * as XLSX from 'xlsx';
 import {
     BarChart3, Download, GraduationCap, RefreshCw,
     Award, GitCompare, AlertCircle, Trash2
 } from 'lucide-react';
 
-import { MetricCards } from '@/components/dashboard/MetricCards';
 import { TabTitulados } from '@/components/dashboard/TabTitulados';
 import { TabEmpleadores } from '@/components/dashboard/TabEmpleadores';
 import { TabChiCuadrada } from '@/components/dashboard/TabChiCuadrada';
+import { HU1Overview } from '@/components/dashboard/HU1Overview';
+import { DataCoverage } from '@/components/dashboard/DataCoverage';
+import { resumirEmpleabilidad } from '@/lib/employability';
+import { normalizeStored, safeSpreadsheetValue, type Row } from '@/lib/importPipeline';
+import { readAllRows, databaseMessage } from '@/lib/surveyRepository';
+
+async function loadSurveys() {
+    const [t, e] = await Promise.all([readAllRows(supabase, 'encuesta_titulados'), readAllRows(supabase, 'encuesta_empleadores')]);
+    return [t.map(r => normalizeStored(r, 'encuesta_titulados')), e.map(r => normalizeStored(r, 'encuesta_empleadores'))] as const;
+}
 
 export default function DashboardPage() {
-    const [titulados, setTitulados] = useState<any[]>([]);
-    const [empleadores, setEmpleadores] = useState<any[]>([]);
+    const [titulados, setTitulados] = useState<Row[]>([]);
+    const [empleadores, setEmpleadores] = useState<Row[]>([]);
+    const [errorMessage, setErrorMessage] = useState('');
+    const [limiteExperiencia, setLimiteExperiencia] = useState(3);
     const [loading, setLoading] = useState(true);
-    const [activeTab, setActiveTab] = useState<'titulados' | 'empleadores' | 'estadistica'>('titulados');
+    const [activeTab, setActiveTab] = useState<'titulados' | 'formacion' | 'empleadores' | 'estadistica'>('titulados');
     const [showDeleteModal, setShowDeleteModal] = useState(false);
     const [deleting, setDeleting] = useState(false);
 
     const fetchData = async () => {
         setLoading(true);
         try {
-            const { data: tData } = await supabase.from('encuesta_titulados').select('*');
-            const { data: eData } = await supabase.from('encuesta_empleadores').select('*');
-
-            setTitulados(tData || []);
-            setEmpleadores(eData || []);
+            const [tData, eData] = await loadSurveys();
+            setTitulados(tData);
+            setEmpleadores(eData);
+            setErrorMessage('');
         } catch (error) {
-            console.error('Error al sincronizar datos institucionales:', error);
+            setErrorMessage(databaseMessage(error));
         } finally {
             setLoading(false);
         }
     };
 
     useEffect(() => {
-        fetchData();
+        let active = true;
+        loadSurveys().then(([t, e]) => { if (active) { setTitulados(t); setEmpleadores(e); } })
+            .catch(error => { if (active) setErrorMessage(databaseMessage(error)); })
+            .finally(() => { if (active) setLoading(false); });
+        return () => { active = false; };
     }, []);
 
-    // HU 1: Estadísticos descriptivos univariados y segmentación
-    const aniosList = titulados.map((t) => Number(t.anios_vida_profesional || 0)).filter((a) => a > 0);
-    const statsAntiguedad = calcularEstadisticasUnivariadas(aniosList);
-    const statsDesempleo = calcularEstadisticasUnivariadas(
-        titulados.map((t) => Number(t.tiempo_desempleado || 0))
-    );
-    const totalConAnios = aniosList.length || 1;
-    const juniorCount = aniosList.filter((a) => a <= 3).length;
-    const consolidadoCount = aniosList.filter((a) => a > 3).length;
-    const segmentacionAntiguedad = {
-        juniorCount,
-        juniorPct: Number(((juniorCount / totalConAnios) * 100).toFixed(1)),
-        consolidadoCount,
-        consolidadoPct: Number(((consolidadoCount / totalConAnios) * 100).toFixed(1)),
-    };
+    const hu1 = resumirEmpleabilidad(titulados, limiteExperiencia);
 
-    // HU 1: Distribución del sector de desempeño de los titulados
-    const distribucionSectoresTitulados = calcularDistribucionFrecuencias(
-        titulados
-            .map((t) => {
-                const s = String(t.sector_empresa_trabajo || '').trim().toUpperCase();
-                if (s.includes('PUB')) return 'Sector Público';
-                if (s.includes('PRIV')) return 'Sector Privado';
-                return s;
-            })
-            .filter(Boolean)
-    );
-
-    // HU 2: Áreas de interés de posgrado (solo el campo area_interes_posgrado)
-    const areasInteres = calcularDistribucionFrecuencias(
-        titulados
-            .map((t) => String(t.area_interes_posgrado || '').trim())
-            .filter(Boolean)
-    );
-
-    // HU 2: Distribución de niveles de posgrado demandados (limpiando residuos como 'SI'/'NO')
-    const normalizarNivelPosgrado = (val: string): string | null => {
-        const clean = val.toUpperCase().trim();
-        if (clean.includes('DIPLO')) return 'Diplomado';
-        if (clean.includes('ESPECIAL')) return 'Especialidad';
-        if (clean.includes('MAESTR')) return 'Maestría';
-        if (clean.includes('POS') && clean.includes('DOCTOR')) return 'Posdoctorado';
-        if (clean.includes('DOCTOR')) return 'Doctorado';
-        return null;
-    };
-
-    const nivelesPosgrado = calcularDistribucionFrecuencias(
-        titulados
-            .map((t) => normalizarNivelPosgrado(String(t.nivel_posgrado_cursado || '')))
-            .filter(Boolean) as string[]
-    );
-
-    // HU 1 & 2: Distribución de situación laboral actual normalizada
-    const normalizarSituacionLaboral = (val: string) => {
-        const s = val.toLowerCase().trim();
-        if (s.includes('trabajando') || s.includes('organizacion')) return 'Empleado en Organización';
-        if (s.includes('emprendimiento')) return 'Emprendimiento Propio';
-        if (s.includes('no trabajo') || s.includes('desempleado')) return 'Desempleado / En Búsqueda';
-        return val || 'No especificado';
-    };
-
-    const distribucionSituacionLaboral = calcularDistribucionFrecuencias(
-        titulados
-            .map((t) => normalizarSituacionLaboral(String(t.situacion_laboral_actual || '')))
-            .filter(Boolean)
-    );
-
-    // HU 3: Prueba Chi-cuadrada (Posgrado vs Financiamiento)
-    const chiData = calcularChiCuadrada(
-        titulados
-            .filter(
-                (t) =>
-                    (t.nivel_posgrado_cursado || t.interes_futuro_posgrado) &&
-                    (t.financiamiento_posgrado_cursado || t.financiamiento_posgrado)
-            )
-            .map((t) => ({
-                varX: t.nivel_posgrado_cursado || (t.interes_futuro_posgrado === 'SI' ? 'Interés Futuro' : 'Sin Posgrado'),
-                varY: t.financiamiento_posgrado_cursado || t.financiamiento_posgrado || 'Recursos Propios',
-            }))
-    );
+    const formacion = resumirFormacion(titulados);
+    const financiamiento = resumirFinanciamiento(titulados);
 
     // HU 4: Radar de Competencias Profesionales (Cálculo dinámico basado en respuestas reales)
     const calcularPromedioCampo = (campo: string): number => {
@@ -187,10 +121,42 @@ export default function DashboardPage() {
     // HU 5: Exportación a Excel
     const exportarAExcel = () => {
         const wb = XLSX.utils.book_new();
-        const wsTitulados = XLSX.utils.json_to_sheet(titulados);
+        const exportRows = (rows: Row[]) => rows.map(r => Object.fromEntries(Object.entries(r)
+            .filter(([k]) => k !== 'raw_data').map(([k, v]) => [k, safeSpreadsheetValue(v)])));
+        const wsTitulados = XLSX.utils.json_to_sheet(exportRows(titulados));
         XLSX.utils.book_append_sheet(wb, wsTitulados, 'Titulados');
-        const wsEmpleadores = XLSX.utils.json_to_sheet(empleadores);
+        const wsEmpleadores = XLSX.utils.json_to_sheet(exportRows(empleadores));
         XLSX.utils.book_append_sheet(wb, wsEmpleadores, 'Empleadores');
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(hu1.plazos), 'HU1_Plazos');
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(hu1.situaciones), 'HU1_Ocupacion');
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(hu1.experienciaGrupos), 'HU1_Experiencia');
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(exportRows(formacion.areas)), 'HU2_Areas');
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(formacion.niveles), 'HU2_Niveles_Cursados');
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(financiamiento.distribucion), 'HU3_Fuentes');
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(filasCruceFinanciamiento(financiamiento)), 'HU3_Cruce');
+        const chi = financiamiento.chi;
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet([
+            { indicador: 'Alcance', valor: 'Nivel cursado y financiamiento utilizado; no intenciones futuras.' },
+            { indicador: 'Base total de titulados', valor: titulados.length },
+            { indicador: 'HU2: interesados en posgrado', valor: formacion.interesados },
+            { indicador: 'HU2: interesados sin area', valor: formacion.sinArea },
+            { indicador: 'HU2: concentracion top 2 (%)', valor: formacion.concentracion.total ? formacion.concentracion.porcentaje : null },
+            { indicador: 'HU3: base de fuentes', valor: financiamiento.fuentesValidas },
+            { indicador: 'HU3: base del cruce', valor: chi.total },
+            { indicador: 'HU3: sin posgrado', valor: financiamiento.exclusiones.sinPosgrado },
+            { indicador: 'HU3: ruta no confirmada', valor: financiamiento.exclusiones.rutaNoConfirmada },
+            { indicador: 'HU3: pares incompletos', valor: financiamiento.exclusiones.incompletas },
+            { indicador: 'HU3: categorias no reconocidas', valor: financiamiento.exclusiones.noReconocidas },
+            { indicador: 'Estado del contraste', valor: chi.estado },
+            { indicador: 'Chi-cuadrada de Pearson', valor: chi.chi2 },
+            { indicador: 'Grados de libertad', valor: chi.gradosLibertad },
+            { indicador: 'p-valor asintotico (vacio si no interpretable)', valor: chi.pValor },
+            { indicador: 'Alfa', valor: 0.05 },
+            { indicador: 'Esperadas menores de 5', valor: chi.celdasMenor5 },
+            { indicador: 'Minima esperada', valor: chi.minimaEsperada },
+            { indicador: 'Datos faltantes en el instrumento', valor: 'Anio de egreso, nivel deseado y fuente prevista para futuros estudios.' },
+            { indicador: 'Interpretacion', valor: chi.existeDependencia === null ? 'Sin conclusion inferencial; consultar estado y esperadas.' : chi.existeDependencia ? 'Evidencia de asociacion; no prueba causalidad.' : 'Sin evidencia suficiente de asociacion; no demuestra independencia.' },
+        ]), 'Metodologia_HU2_HU3');
         XLSX.writeFile(wb, 'Estudio_Mercado_ARCUSUR_UMSS.xlsx');
     };
 
@@ -198,12 +164,14 @@ export default function DashboardPage() {
     const handleResetData = async () => {
         setDeleting(true);
         try {
-            await supabase.from('encuesta_titulados').delete().neq('id', 0);
-            await supabase.from('encuesta_empleadores').delete().neq('id', 0);
+            const tResult = await supabase.from('encuesta_titulados').delete().not('id', 'is', null);
+            if (tResult.error) throw tResult.error;
+            const eResult = await supabase.from('encuesta_empleadores').delete().not('id', 'is', null);
+            if (eResult.error) throw eResult.error;
             setShowDeleteModal(false);
             await fetchData();
         } catch (err) {
-            console.error('Error al reiniciar los datos:', err);
+            setErrorMessage(databaseMessage(err));
         } finally {
             setDeleting(false);
         }
@@ -251,79 +219,80 @@ export default function DashboardPage() {
                         className="inline-flex items-center justify-center gap-2 bg-emerald-700 hover:bg-emerald-800 text-white font-medium px-4 py-2 rounded-lg text-xs sm:text-sm shadow transition-colors flex-1 sm:flex-initial"
                     >
                         <Download className="h-4 w-4" />
-                        <span>Exportar Datos Limpios (.xlsx)</span>
+                        <span>Exportar datos y análisis (.xlsx)</span>
                     </button>
                 </div>
             </div>
 
+            {errorMessage && <p role="alert" className="p-4 bg-red-50 text-red-800 rounded-lg mb-4">{errorMessage}</p>}
             {/* Alerta formal si no hay datos */}
-            {titulados.length === 0 && empleadores.length === 0 && (
+            {!errorMessage && titulados.length === 0 && empleadores.length === 0 && (
                 <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 sm:p-5 mb-8 flex items-start gap-3 text-amber-800 text-xs sm:text-sm">
                     <AlertCircle className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5" />
                     <div>
                         <p className="font-semibold">No se registran datos en el repositorio.</p>
                         <p className="mt-0.5 text-slate-600">
-                            Ingrese a la sección <strong>"Cargar Datos"</strong> para importar los registros oficiales (.xlsx o .csv) y generar los indicadores analíticos.
+                            Ingrese a la sección <strong>Cargar Datos</strong> para importar los registros oficiales (.xlsx o .csv) y generar los indicadores analíticos.
                         </p>
                     </div>
                 </div>
             )}
 
-            {/* Tarjetas Superiores */}
-            <MetricCards
-                statsAntiguedad={statsAntiguedad}
-                statsDesempleo={statsDesempleo}
-                totalTitulados={titulados.length}
-                totalEmpleadores={empleadores.length}
-                segmentacionAntiguedad={segmentacionAntiguedad}
-            />
+            <p className="mb-5 flex flex-wrap gap-3 text-xs text-slate-500">
+                <span className="rounded-full border border-slate-200 bg-white px-3 py-1.5"><strong className="text-slate-800">{titulados.length}</strong> respuestas de titulados</span>
+                <span className="rounded-full border border-slate-200 bg-white px-3 py-1.5"><strong className="text-slate-800">{empleadores.length}</strong> respuestas de empleadores</span>
+            </p>
 
             {/* Navegación por Pestañas Responsiva */}
-            <div className="flex border-b border-slate-200 mb-6 overflow-x-auto whitespace-nowrap custom-scrollbar">
+            <nav aria-label="Secciones del análisis" className="flex border-b border-slate-200 mb-6 overflow-x-auto whitespace-nowrap custom-scrollbar">
                 <button
                     onClick={() => setActiveTab('titulados')}
+                    aria-current={activeTab === 'titulados' ? 'page' : undefined}
                     className={`flex items-center gap-2 px-4 sm:px-5 py-3 text-xs sm:text-sm font-semibold border-b-2 transition-all ${activeTab === 'titulados'
                         ? 'border-umss-azul text-umss-azul bg-blue-50/50'
                         : 'border-transparent text-slate-500 hover:text-slate-700'
                         }`}
                 >
                     <GraduationCap className="h-4 w-4" />
-                    <span>1. Titulados y Formación (HU 1 & HU 2)</span>
+                    <span>HU1 · Empleabilidad</span>
                 </button>
 
-                <button
-                    onClick={() => setActiveTab('empleadores')}
-                    className={`flex items-center gap-2 px-4 sm:px-5 py-3 text-xs sm:text-sm font-semibold border-b-2 transition-all ${activeTab === 'empleadores'
-                        ? 'border-umss-azul text-umss-azul bg-blue-50/50'
-                        : 'border-transparent text-slate-500 hover:text-slate-700'
-                        }`}
-                >
-                    <Award className="h-4 w-4" />
-                    <span>2. Empleadores y Competencias (HU 4)</span>
+                <button onClick={() => setActiveTab('formacion')} aria-current={activeTab === 'formacion' ? 'page' : undefined}
+                    className={`flex items-center gap-2 px-4 sm:px-5 py-3 text-xs sm:text-sm font-semibold border-b-2 transition-colors ${activeTab === 'formacion' ? 'border-umss-azul text-umss-azul bg-blue-50/50' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
+                    <GraduationCap className="h-4 w-4" /><span>HU2 · Formación continua</span>
                 </button>
 
                 <button
                     onClick={() => setActiveTab('estadistica')}
+                    aria-current={activeTab === 'estadistica' ? 'page' : undefined}
                     className={`flex items-center gap-2 px-4 sm:px-5 py-3 text-xs sm:text-sm font-semibold border-b-2 transition-all ${activeTab === 'estadistica'
                         ? 'border-umss-azul text-umss-azul bg-blue-50/50'
                         : 'border-transparent text-slate-500 hover:text-slate-700'
                         }`}
                 >
                     <GitCompare className="h-4 w-4" />
-                    <span>3. Prueba Chi-Cuadrada e Independencia (HU 3)</span>
+                    <span>HU3 · Financiamiento</span>
                 </button>
-            </div>
+
+                <button
+                    onClick={() => setActiveTab('empleadores')}
+                    aria-current={activeTab === 'empleadores' ? 'page' : undefined}
+                    className={`flex items-center gap-2 px-4 sm:px-5 py-3 text-xs sm:text-sm font-semibold border-b-2 transition-all ${activeTab === 'empleadores'
+                        ? 'border-umss-azul text-umss-azul bg-blue-50/50'
+                        : 'border-transparent text-slate-500 hover:text-slate-700'
+                        }`}
+                >
+                    <Award className="h-4 w-4" />
+                    <span>HU4 · Empleadores</span>
+                </button>
+            </nav>
 
             {/* Vistas según pestaña activa */}
             {activeTab === 'titulados' && (
-                <TabTitulados
-                    areasInteres={areasInteres}
-                    nivelesPosgrado={nivelesPosgrado}
-                    distribucionSituacionLaboral={distribucionSituacionLaboral}
-                    distribucionSectoresTitulados={distribucionSectoresTitulados}
-                    segmentacionAntiguedad={segmentacionAntiguedad}
-                    titulados={titulados}
-                />
+                <HU1Overview summary={hu1} limite={limiteExperiencia} onLimite={setLimiteExperiencia} />
+            )}
+            {activeTab === 'formacion' && (
+                <TabTitulados summary={formacion} />
             )}
             {activeTab === 'empleadores' && (
                 <TabEmpleadores
@@ -332,7 +301,8 @@ export default function DashboardPage() {
                     totalEmpleadores={empleadores.length}
                 />
             )}
-            {activeTab === 'estadistica' && <TabChiCuadrada chiData={chiData} />}
+            {activeTab === 'estadistica' && <TabChiCuadrada summary={financiamiento} />}
+            <div className="mt-6"><DataCoverage /></div>
 
             {/* Modal de confirmación para Limpiar Datos */}
             {showDeleteModal && (

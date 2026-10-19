@@ -1,213 +1,118 @@
-// app/upload/page.tsx
 'use client';
 
-import React, { useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import * as XLSX from 'xlsx';
 import Papa from 'papaparse';
 import { supabase } from '@/lib/supabaseClient';
-import { CheckCircle2, AlertCircle, FileSpreadsheet } from 'lucide-react';
-import { mapearFilaEmpleador, mapearFilaTitulado } from '@/lib/dataMappers';
-import { validarArchivo, validarCorrespondenciaEncuesta } from '@/lib/fileValidation';
-
+import { inspectRows, MAX_ROWS, responseHash, sha256, safeSpreadsheetValue, type Row, type SurveyType, type UnitPolicy } from '@/lib/importPipeline';
+import { readCsv, readSheet } from '@/lib/readSurveyFile';
+import { databaseMessage, savePreparedRows } from '@/lib/surveyRepository';
+import { validarArchivo } from '@/lib/fileValidation';
 import { TableSelector } from '@/components/upload/TableSelector';
 import { DropZone } from '@/components/upload/DropZone';
 import { DataPreviewTable } from '@/components/upload/DataPreviewTable';
+import { UserFacingError, fileErrorMessage } from '@/lib/userMessages';
+import { fieldLabel } from '@/lib/surveyFields';
 
 export default function UploadPage() {
-    const [targetTable, setTargetTable] = useState<'encuesta_titulados' | 'encuesta_empleadores'>('encuesta_titulados');
-    const [dataPreview, setDataPreview] = useState<any[]>([]);
-    const [headers, setHeaders] = useState<string[]>([]);
-    const [fileName, setFileName] = useState<string>('');
+    const [target, setTarget] = useState<SurveyType>('encuesta_titulados');
+    const [rows, setRows] = useState<Row[]>([]);
+    const [workbook, setWorkbook] = useState<XLSX.WorkBook | null>(null);
+    const [sheetName, setSheetName] = useState('');
+    const [source, setSource] = useState({ name: '', hash: '' });
+    const [unit, setUnit] = useState<UnitPolicy>('sin_definir');
+    const [version, setVersion] = useState('');
     const [loading, setLoading] = useState(false);
-    const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+    const [accepted, setAccepted] = useState(false);
+    const [originalView, setOriginalView] = useState(false);
+    const [message, setMessage] = useState<{ error: boolean; text: string } | null>(null);
+    const generation = useRef(0);
+    const result = useMemo(() => inspectRows(rows, target, unit), [rows, target, unit]);
+    const hasWarnings = result.issues.length > 0 || result.unknownHeaders.length > 0;
+    const canSave = result.rows.length > 0 && result.errors.length === 0 && (!hasWarnings || accepted);
+    const reset = () => { generation.current++; setRows([]); setWorkbook(null); setSource({ name: '', hash: '' }); setSheetName(''); setAccepted(false); setMessage(null); };
 
-    const procesarDatosLeidos = (data: any[], detectedHeaders: string[]) => {
-        // Validación de correspondencia institucional
-        const validacionEncuesta = validarCorrespondenciaEncuesta(detectedHeaders, targetTable);
-        if (!validacionEncuesta.isValid) {
-            setMessage({ type: 'error', text: validacionEncuesta.errorMessage! });
-            setDataPreview([]);
-            setHeaders([]);
-            return;
-        }
-
-        setHeaders(detectedHeaders);
-        setDataPreview(data);
-    };
-
-    const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-        setMessage(null);
-        const file = e.target.files?.[0];
-        if (!file) return;
-
-        // Validación preliminar de archivo
-        const validacionArchivo = validarArchivo(file);
-        if (!validacionArchivo.isValid) {
-            setMessage({ type: 'error', text: validacionArchivo.errorMessage! });
-            return;
-        }
-
-        setFileName(file.name);
-        const extension = file.name.split('.').pop()?.toLowerCase();
-
-        if (extension === 'csv') {
-            Papa.parse(file, {
-                header: true,
-                skipEmptyLines: true,
-                complete: (results) => {
-                    if (results.data.length > 0) {
-                        const detectedHeaders = Object.keys(results.data[0] as object);
-                        procesarDatosLeidos(results.data, detectedHeaders);
-                    } else {
-                        setMessage({ type: 'error', text: 'El archivo seleccionado no contiene registros de respuestas.' });
-                    }
-                },
-                error: () => {
-                    setMessage({ type: 'error', text: 'Inconsistencia al interpretar el archivo CSV. Compruebe la codificación.' });
-                },
-            });
-        } else {
-            const reader = new FileReader();
-            reader.onload = (evt) => {
-                try {
-                    const bstr = evt.target?.result;
-                    const workbook = XLSX.read(bstr, { type: 'binary' });
-                    const firstSheetName = workbook.SheetNames[0];
-                    const worksheet = workbook.Sheets[firstSheetName];
-                    const json = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
-
-                    if (json.length > 0) {
-                        const detectedHeaders = Object.keys(json[0] as object);
-                        procesarDatosLeidos(json, detectedHeaders);
-                    } else {
-                        setMessage({ type: 'error', text: 'La hoja de cálculo seleccionada no contiene registros de respuestas.' });
-                    }
-                } catch {
-                    setMessage({ type: 'error', text: 'No fue posible abrir el archivo de Excel. Verifique que no esté dañado.' });
-                }
-            };
-            reader.readAsBinaryString(file);
-        }
-    };
-
-    const handleSaveToDatabase = async () => {
-        if (dataPreview.length === 0) return;
-
+    const openFile = async (file: File) => {
+        reset();
+        const request = generation.current;
+        const validation = validarArchivo(file);
+        if (!validation.isValid) { setMessage({ error: true, text: validation.errorMessage! }); return; }
         setLoading(true);
-        setMessage(null);
-
         try {
-            // 1. Limpieza y mapeo estructurado de cada fila
-            const cleanedData = dataPreview.map((row) =>
-                targetTable === 'encuesta_empleadores' ? mapearFilaEmpleador(row) : mapearFilaTitulado(row)
-            );
-
-            // 2. Limpieza automática previa para evitar duplicados accidentales
-            const { error: deleteError } = await supabase
-                .from(targetTable)
-                .delete()
-                .neq('id', 0);
-
-            if (deleteError) {
-                throw new Error('No se pudo restablecer la cohorte anterior.');
+            const bytes = await file.arrayBuffer();
+            const hash = await sha256(bytes);
+            if (request !== generation.current) return;
+            if (file.name.toLowerCase().endsWith('.csv')) {
+                setRows(readCsv(bytes)); setSheetName('CSV');
+            } else {
+                const book = XLSX.read(bytes, { type: 'array', sheetRows: MAX_ROWS + 2 });
+                const name = book.SheetNames[0];
+                if (!name) throw new UserFacingError('El archivo no contiene hojas. Selecciona otro archivo de respuestas.');
+                const data = readSheet(book, name);
+                setWorkbook(book); setSheetName(name); setRows(data);
             }
-
-            // 3. Inserción por lotes de 100 registros (Batch Insert)
-            const batchSize = 100;
-            let totalInserted = 0;
-
-            for (let i = 0; i < cleanedData.length; i += batchSize) {
-                const batch = cleanedData.slice(i, i + batchSize);
-                const { error: insertError } = await supabase.from(targetTable).insert(batch);
-
-                if (insertError) {
-                    console.error('Detalle técnico de la inserción:', insertError);
-                    throw new Error('Estructura de datos incompatible con el esquema institucional.');
-                }
-                totalInserted += batch.length;
-            }
-
-            const nombreInstrumento = targetTable === 'encuesta_titulados' ? 'Titulados' : 'Empleadores';
-
-            setMessage({
-                type: 'success',
-                text: `Se importaron y procesaron correctamente ${totalInserted} registros en el repositorio institucional de ${nombreInstrumento}.`,
-            });
-
-            setDataPreview([]);
-            setHeaders([]);
-            setFileName('');
-        } catch (err) {
-            console.error('Error durante la importación:', err);
-            setMessage({
-                type: 'error',
-                text: 'No fue posible completar la importación. Compruebe que el documento corresponda al instrumento oficial seleccionado e intente nuevamente.',
-            });
-        } finally {
-            setLoading(false);
-        }
+            setSource({ name: file.name, hash });
+        } catch (error) {
+            setRows([]); setWorkbook(null); setSource({ name: '', hash: '' });
+            setMessage({ error: true, text: fileErrorMessage(error) });
+        } finally { if (request === generation.current) setLoading(false); }
     };
 
-    return (
-        <div className="max-w-6xl mx-auto py-6 sm:py-10 px-3 sm:px-6 lg:px-8">
-            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 sm:p-6 md:p-8">
+    const save = async () => {
+        if (!canSave || loading) return;
+        setLoading(true); setMessage(null);
+        try {
+            const payload = await Promise.all(result.rows.map(async row => ({ ...row,
+                respuesta_hash: await responseHash(row.raw_data), archivo_sha256: source.hash,
+                archivo_nombre: source.name, hoja_origen: sheetName, version_instrumento: version.trim() || null,
+                instrumento_origen: target === 'encuesta_titulados' ? 'umss-titulados-microsoft-forms' : 'umss-empleadores-google-forms',
+            })));
+            // Una sola solicitud: toda la insercion se confirma o revierte. Nunca borrar antes.
+            const { inserted: count } = await savePreparedRows(supabase, target, payload);
+            setMessage({ error: false, text: count == null ? 'La carga se completó y los registros anteriores se conservaron.' :
+                `${count} respuestas nuevas guardadas; ${payload.length - count} ya existentes omitidas. Los registros anteriores se conservaron.` });
+            setRows([]); setAccepted(false);
+        } catch (error) { setMessage({ error: true, text: databaseMessage(error) }); }
+        finally { setLoading(false); }
+    };
+    const downloadIssues = () => {
+        const report = result.issues.map(i => Object.fromEntries(Object.entries({ ...i, campo: fieldLabel(i.campo) }).map(([k, v]) => [k, safeSpreadsheetValue(v)])));
+        const blob = new Blob(['\ufeff', Papa.unparse(report)], { type: 'text/csv;charset=utf-8' });
+        const url = URL.createObjectURL(blob), link = document.createElement('a');
+        link.href = url; link.download = 'observaciones_carga.csv'; link.click(); URL.revokeObjectURL(url);
+    };
+    const preview = originalView ? rows : result.rows;
+    const previewHeaders = originalView ? Object.keys(rows[0] ?? {}) : Object.keys(result.rows[0] ?? {}).filter(k => !['raw_data', 'respuestas_originales', 'calidad_datos', 'codigos_ordinales', 'selecciones_multiples', 'version_mapeo'].includes(k));
 
-                {/* Encabezado Institucional */}
-                <div className="border-b border-slate-100 pb-4 sm:pb-5 mb-5 sm:mb-6">
-                    <h2 className="text-xl sm:text-2xl font-bold text-umss-azul flex items-center gap-2">
-                        <FileSpreadsheet className="text-umss-rojo h-6 w-6 flex-shrink-0" />
-                        <span>Módulo de Importación y Procesamiento de Datos</span>
-                    </h2>
-                    <p className="text-xs sm:text-sm text-slate-600 mt-1 leading-relaxed">
-                        Plataforma institucional para la ingesta y estructuración de respuestas recopiladas en los instrumentos de autoevaluación ARCUSUR.
-                    </p>
-                </div>
-
-                {/* 1. Selector de Encuesta */}
-                <TableSelector
-                    targetTable={targetTable}
-                    setTargetTable={(t) => {
-                        setTargetTable(t);
-                        setDataPreview([]);
-                        setHeaders([]);
-                        setFileName('');
-                        setMessage(null);
-                    }}
-                    disabled={loading}
-                />
-
-                {/* 2. Zona de Carga Directa */}
-                <DropZone
-                    fileName={fileName}
-                    onFileSelected={handleFileUpload}
-                    disabled={loading}
-                />
-
-                {/* Mensajes y Alertas Profesionales */}
-                {message && (
-                    <div
-                        className={`p-4 rounded-xl mb-6 flex items-start gap-3 text-xs sm:text-sm ${message.type === 'success'
-                                ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
-                                : 'bg-red-50 text-red-800 border border-red-200'
-                            }`}
-                    >
-                        {message.type === 'success' ? (
-                            <CheckCircle2 className="h-5 w-5 text-emerald-600 flex-shrink-0 mt-0.5" />
-                        ) : (
-                            <AlertCircle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
-                        )}
-                        <p className="leading-relaxed font-medium">{message.text}</p>
-                    </div>
-                )}
-
-                {/* 3. Vista Previa Tabular */}
-                <DataPreviewTable
-                    headers={headers}
-                    dataPreview={dataPreview}
-                    loading={loading}
-                    onConfirm={handleSaveToDatabase}
-                />
-            </div>
-        </div>
-    );
+    return <div className="max-w-6xl mx-auto py-8 px-4"><div className="bg-white rounded-2xl border border-slate-200 p-5 sm:p-8 space-y-5">
+        <div><h1 className="text-2xl font-bold text-umss-azul">Cargar y revisar respuestas</h1>
+            <p className="text-sm text-slate-600 mt-2">Seleccione el instrumento y el archivo del docente. Revise los datos transformados antes de agregar respuestas; las cargas anteriores se conservan.</p></div>
+        <TableSelector targetTable={target} setTargetTable={t => { reset(); setTarget(t); }} disabled={loading} />
+        <DropZone fileName={source.name} disabled={loading} onFileDrop={openFile} onFileSelected={e => { const file = e.target.files?.[0]; e.target.value = ''; if (file) void openFile(file); }} />
+        {workbook && <label className="block text-sm font-medium">Hoja del libro
+            <select disabled={loading} value={sheetName} onChange={e => {
+                setSheetName(e.target.value); setAccepted(false); setMessage(null);
+                try { setRows(readSheet(workbook, e.target.value)); } catch (err) { setRows([]); setMessage({ error: true, text: fileErrorMessage(err) }); }
+            }} className="block border border-slate-300 rounded-lg p-2 mt-1 w-full">{workbook.SheetNames.map(n => <option key={n}>{n}</option>)}</select></label>}
+        {target === 'encuesta_titulados' && <label className="block text-sm font-medium">Unidad de desempleo para respuestas que contienen solo un número
+            <select disabled={loading} value={unit} onChange={e => { setUnit(e.target.value as UnitPolicy); setAccepted(false); }} className="block border rounded-lg p-2 mt-1 w-full">
+                <option value="sin_definir">Sin confirmar: excluir números ambiguos de los cálculos</option><option value="meses">Meses, confirmado con el docente</option><option value="anios">Años, confirmado con el docente</option>
+            </select><span className="text-xs text-slate-500">Las respuestas con unidad explícita se convierten por separado. Cero sigue siendo cero.</span></label>}
+        <label className="block text-sm">Versión del cuestionario, si se conoce <input disabled={loading} value={version} onChange={e => setVersion(e.target.value)} placeholder="Opcional; no se infiere del archivo" className="block border rounded-lg p-2 w-full mt-1" /></label>
+        {loading && <p role="status" className="text-sm text-umss-azul">Procesando la carga…</p>}
+        {message && <p role={message.error ? 'alert' : 'status'} className={`p-4 rounded-lg text-sm ${message.error ? 'bg-red-50 text-red-800' : 'bg-emerald-50 text-emerald-800'}`}>{message.text}</p>}
+        {source.name && <>
+            <p className="text-sm bg-slate-50 rounded-lg p-3">{rows.length} filas leídas · {result.rows.length} respuestas preparadas · {result.emptyRows} filas sin respuestas omitidas · {result.duplicates} duplicadas exactas omitidas · {result.issues.length} observaciones</p>
+            {rows.length > 0 && <p className="text-sm text-slate-600">Preguntas reconocidas: {result.recognizedFields} de {result.expectedFields}. Las columnas auxiliares de puntuación y comentarios no se cuentan como preguntas.</p>}
+            {result.errors.map(e => <p role="alert" key={e} className="text-red-700 text-sm">{e}</p>)}
+            {result.unknownHeaders.length > 0 && <div className="text-sm text-amber-900 bg-amber-50 p-3 rounded-lg">Columnas sin reconocer ({result.unknownHeaders.length}); sus valores originales se conservan:
+                <ul className="list-disc pl-5">{result.unknownHeaders.map(h => <li key={h}>{h}</li>)}</ul></div>}
+            {result.issues.length > 0 && <div className="border border-amber-200 p-3 rounded-lg text-sm"><div className="flex justify-between gap-3"><p>Valores inválidos o rutas históricas por revisar. Los datos ambiguos quedan fuera de los cálculos.</p><button disabled={loading} onClick={downloadIssues} className="text-umss-azul underline shrink-0">Descargar observaciones</button></div>
+                <div className="overflow-auto max-h-56 mt-2"><table className="w-full text-xs text-left"><thead><tr><th>Fila</th><th>Pregunta</th><th>Observación</th></tr></thead><tbody>{result.issues.slice(0, 100).map((i, n) => <tr key={n}><td className="p-1">{i.fila}</td><td className="p-1">{fieldLabel(i.campo)}</td><td className="p-1">{i.mensaje}</td></tr>)}</tbody></table></div>
+                {result.issues.length > 100 && <p>Se muestran 100; el archivo descargado contiene todas.</p>}</div>}
+            {hasWarnings && <label className="flex items-start gap-2 text-sm"><input type="checkbox" checked={accepted} disabled={loading} onChange={e => setAccepted(e.target.checked)} />Revisé las observaciones y acepto conservar las respuestas originales, excluyendo los valores no interpretables de los indicadores.</label>}
+            <button disabled={loading} onClick={() => setOriginalView(!originalView)} className="text-sm text-umss-azul underline">{originalView ? 'Ver datos transformados' : 'Comparar con datos originales'}</button>
+            <DataPreviewTable headers={previewHeaders} dataPreview={preview} loading={loading} canSave={canSave} onConfirm={save} />
+        </>}
+    </div></div>;
 }

@@ -28,7 +28,7 @@ export const TabEmpleadores: React.FC<TabEmpleadoresProps> = ({
                         Evaluación de Competencias Profesionales (HU 4)
                     </h3>
                     <p className="text-xs text-slate-500 mb-4">
-                        Puntaje medio asignado por el sector empleador en escala Likert (1 a 5).
+                        Puntaje medio transformado a 1–5 desde tres categorías de acuerdo. No sabe se conserva y se excluye del promedio.
                     </p>
                 </div>
 
