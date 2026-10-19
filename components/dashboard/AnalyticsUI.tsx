@@ -5,13 +5,14 @@ import { BarChart3, Table2 } from 'lucide-react';
 export const numberLabel = (v: number) => v.toLocaleString('es-BO', { maximumFractionDigits: 1 });
 export const percentLabel = (v: number | null) => v === null ? 'Sin datos' : `${numberLabel(v)}%`;
 
-export function Indicator({ label, value, unit, detail, accent = false }: {
-    label: string; value: ReactNode; unit?: string; detail: ReactNode; accent?: boolean;
+export function Indicator({ label, value, unit, detail }: {
+    label: string; value: ReactNode; unit?: string; detail: ReactNode;
 }) {
-    return <article className={`rounded-2xl border p-5 sm:p-6 ${accent ? 'border-umss-azul bg-umss-azul text-white' : 'border-slate-200 bg-white text-slate-900'}`}>
-        <h3 className={`text-sm font-medium ${accent ? 'text-blue-100' : 'text-slate-600'}`}>{label}</h3>
-        <p className="mt-3 flex flex-wrap items-baseline gap-2 text-3xl font-bold tracking-tight tabular-nums">{value}{unit && <span className="text-sm font-normal opacity-70">{unit}</span>}</p>
-        <div className="mt-3 text-xs leading-relaxed opacity-75">{detail}</div>
+    const unavailable = value == null || value === '—' || value === 'Sin datos';
+    return <article className="rounded-2xl border border-slate-200 bg-white p-5 text-slate-900 sm:p-6">
+        <h3 className="text-sm font-medium text-slate-600">{label}</h3>
+        <p className={`mt-3 flex flex-wrap items-baseline gap-2 ${unavailable ? 'text-sm font-normal text-slate-500' : 'text-3xl font-bold tracking-tight tabular-nums'}`}>{unavailable ? 'Sin datos' : value}{unit && !unavailable && <span className="text-sm font-normal opacity-70">{unit}</span>}</p>
+        <div className="mt-3 text-xs leading-relaxed text-slate-600">{detail}</div>
     </article>;
 }
 
@@ -28,14 +29,14 @@ export function Distribution({ title, description, data, cumulative = false, ton
     return <article className="min-w-0 rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
         <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="min-w-0 flex-1"><h3 className="font-semibold text-slate-900">{title}</h3><p className="mt-1 text-xs leading-relaxed text-slate-500">{description}</p></div>
-            <div className="inline-flex shrink-0 rounded-lg bg-slate-100 p-1" aria-label={`Vista de ${title}`}>
+            {total > 0 && <div className="inline-flex shrink-0 rounded-lg bg-slate-100 p-1" aria-label={`Vista de ${title}`}>
                 {[false, true].map(t => <button key={String(t)} type="button" aria-pressed={table === t} onClick={() => setTable(t)} className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-2 text-xs font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-700 ${table === t ? 'bg-white text-umss-azul shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}>
                     {t ? <Table2 size={14} aria-hidden="true" /> : <BarChart3 size={14} aria-hidden="true" />}{t ? 'Tabla' : 'Gráfico'}
                 </button>)}
-            </div>
+            </div>}
         </div>
-        <p className="mt-4 mb-5 text-xs font-medium text-slate-600">Base: {total} respuestas válidas</p>
-        {!total ? <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-5 py-10 text-center text-sm text-slate-500">No hay respuestas válidas para mostrar este indicador.</div> : table ? <div className="overflow-x-auto">
+        {total > 0 && <p className="mt-4 mb-5 text-xs font-medium text-slate-600">Base: {total} respuestas válidas</p>}
+        {!total ? <p className="mt-3 text-sm text-slate-500">Sin respuestas válidas.</p> : table ? <div className="overflow-x-auto">
             <table className="w-full text-left text-sm"><caption className="sr-only">{title}. Frecuencias sobre {total} respuestas válidas.</caption>
                 <thead className="border-b border-slate-200 text-xs text-slate-500"><tr><th scope="col" className="pb-3 pr-3 font-medium">Categoría</th><th scope="col" className="pb-3 px-3 text-right font-medium">Cantidad</th><th scope="col" className="pb-3 pl-3 text-right font-medium">%</th>{cumulative && <th scope="col" className="pb-3 pl-3 text-right font-medium">% acumulado</th>}</tr></thead>
                 <tbody className="divide-y divide-slate-100">{rows.map(r => <tr key={r.nombre}><th scope="row" className="py-3 pr-3 font-normal text-slate-700">{r.nombre}</th><td className="px-3 text-right tabular-nums">{r.cantidad}</td><td className="pl-3 text-right tabular-nums">{percentLabel(r.pct)}</td>{cumulative && <td className="pl-3 text-right tabular-nums">{percentLabel(r.accumulated)}</td>}</tr>)}</tbody>

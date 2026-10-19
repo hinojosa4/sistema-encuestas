@@ -19,6 +19,30 @@ body {
   max-width: 100vw;
 }
 
+@layer base {
+  button:not(:disabled),
+  a[href],
+  summary,
+  select:not(:disabled),
+  input[type="range"]:not(:disabled) {
+    cursor: pointer;
+  }
+
+  button:disabled,
+  select:disabled {
+    cursor: not-allowed;
+  }
+
+  :where(button, a[href], summary, select, input):focus-visible {
+    outline: 2px solid #003770;
+    outline-offset: 3px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+}
+
 /* Custom scrollbars for responsive scrollable tables */
 .custom-scrollbar::-webkit-scrollbar {
   height: 6px;

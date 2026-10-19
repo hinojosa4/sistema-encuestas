@@ -188,7 +188,7 @@ export function prepareRow(raw: Row, type: SurveyType, unit: UnitPolicy = 'sin_d
             if (n === 'hora de finalizacion') row.hora_finalizacion_original = String(value);
             if (n === 'correo electronico') row.correo_microsoft = cleanString(value);
             if (n === 'nombre') row.nombre_microsoft = cleanString(value);
-            if (['ano de egreso', 'anio de egreso', 'anio egreso'].includes(n)) {
+            if (['ano de egreso', 'anio de egreso', 'anio egreso', 'ano egreso', 'anio_egreso', 'ano_egreso'].includes(n)) {
                 const year = Number(value);
                 row.anio_egreso = Number.isInteger(year) && year >= 1900 && year <= new Date().getFullYear() ? year : null;
                 quality.anio_egreso = { estado: empty(value) ? 'sin_respuesta' : row.anio_egreso === null ? 'invalida' : 'respondida' };

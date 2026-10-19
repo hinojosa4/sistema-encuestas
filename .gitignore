@@ -42,6 +42,7 @@ next-env.d.ts
 
 # Archivos de trabajo y encuestas originales con datos personales
 /tmp/
+/output/
 /datos/*.xlsx
 /datos/*.xls
 /datos/*.csv

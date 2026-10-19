@@ -2,6 +2,9 @@
 import * as ss from 'simple-statistics';
 import jStat from 'jstat';
 
+// Decisión metodológica, no estimación de la encuesta. Debe fijarse antes del contraste.
+export const SIGNIFICANCE_LEVEL = 0.05;
+
 // Concentracion descriptiva por conteos originales, sin sumar porcentajes redondeados.
 export function calcularConcentracion(categorias: { nombre: string; cantidad: number }[], umbral = 70) {
     const ordenadas = [...categorias].filter(c => Number.isFinite(c.cantidad) && c.cantidad > 0).sort((a, b) => b.cantidad - a.cantidad);
@@ -51,6 +54,7 @@ export function calcularDistribucionFrecuencias(categorias: string[]) {
 }
 
 export type ChiSquareResult = {
+    alfa: number;
     chi2: number | null;
     pValor: number | null;
     gradosLibertad: number;
@@ -91,6 +95,7 @@ export function calcularChiCuadrada(
     const celdasMenor5 = valoresEsperados.filter(v => v < 5).length;
     const minimaEsperada = valoresEsperados.length ? Math.min(...valoresEsperados) : null;
     const base: ChiSquareResult = {
+        alfa: SIGNIFICANCE_LEVEL,
         filas, columnas, matriz, esperadas, totalesFila, totalesColumna, total,
         excluidos: datos.length - total, celdasMenor5, minimaEsperada,
         gradosLibertad: Math.max(0, filas.length - 1) * Math.max(0, columnas.length - 1),
@@ -107,7 +112,7 @@ export function calcularChiCuadrada(
     try {
         const pValor = 1 - jStat.chisquare.cdf(chi2, base.gradosLibertad);
         if (!Number.isFinite(pValor) || pValor < 0 || pValor > 1) return { ...base, estado: 'error_numerico' };
-        return { ...base, pValor, existeDependencia: pValor < 0.05, estado: 'calculada' };
+        return { ...base, pValor, existeDependencia: pValor < SIGNIFICANCE_LEVEL, estado: 'calculada' };
     } catch {
         return { ...base, estado: 'error_numerico' };
     }

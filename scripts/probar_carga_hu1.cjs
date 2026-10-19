@@ -13,6 +13,11 @@ const e = require('../lib/employability.ts');
 const repository = require('../lib/surveyRepository.ts');
 const stats = require('../lib/statistics.ts');
 const postgraduate = require('../lib/postgraduate.ts');
+const competencies = require('../lib/competencies.ts');
+const reports = require('../lib/reports.ts');
+const { buildAcademicReport, UMSS_COLORS } = require('../lib/academicReport.ts');
+const { academicReportToPdf } = require('../lib/academicPdf.ts');
+const { generateReport } = require('../lib/reportService.ts');
 const reader = require('../lib/readSurveyFile.ts');
 const validation = require('../lib/fileValidation.ts');
 const messages = require('../lib/userMessages.ts');
@@ -24,6 +29,34 @@ const books = fs.readdirSync('datos').filter(n => n.endsWith('.xlsx')).map(name 
 });
 const graduates = books.find(b => b.type === 'encuesta_titulados');
 const employers = books.find(b => b.type === 'encuesta_empleadores');
+
+test('egreso: valida años explícitos, calcula antigüedad y separa bases de ocupación por cohorte', () => {
+  const rows = [
+    { anio_egreso:2020, situacion_laboral_actual:'Empleado en Organización' },
+    { anio_egreso:2020, situacion_laboral_actual:'Desempleado / En Búsqueda' },
+    { anio_egreso:2020, situacion_laboral_actual:null },
+    { anio_egreso:2026, situacion_laboral_actual:'Emprendimiento Propio' },
+    ...[2027,1899,2020.5,'2020',null].map(anio_egreso=>({anio_egreso})),
+    { anios_vida_profesional_normalizados:10 },
+  ];
+  const result=e.resumirEmpleabilidad(rows,3,2026);
+  assert.equal(result.egreso.estadisticas.total,4);
+  assert.equal(result.egreso.estadisticas.media,4.5);
+  assert.equal(result.egreso.estadisticas.mediana,6);
+  assert.equal(result.egreso.estadisticas.desviacionEstandar,3);
+  assert.equal(result.egreso.excluidos,6);
+  assert.deepEqual(result.ocupacionPorCohorte,[
+    {anio:2020,respuestas:3,ocupados:1,base:2,excluidos:1,porcentaje:50},
+    {anio:2026,respuestas:1,ocupados:1,base:1,excluidos:0,porcentaje:100},
+  ]);
+  assert.equal(p.prepareRow({ anio_egreso:'2020' }, graduates.type).anio_egreso,2020);
+  const empty=e.resumirEmpleabilidad([{anios_vida_profesional_normalizados:10}],3,2026);
+  assert.equal(empty.cohortes.length,0);
+  const report=reports.buildReport(rows,[],{scope:'todos',corte:3},'2026-10-19T12:00:00.000Z');
+  assert.equal(report.tablas.find(t=>t.nombre==='Egreso_Ocupacion').filas.length,2);
+  const model=buildAcademicReport({...report,huella:'prueba-egreso'});
+  assert.ok(JSON.stringify(model).includes('Tabla 3a Ocupación actual por cohorte'));
+});
 
 test('lectura: columnas repetidas, CSV malformado, UTF8 y hojas vacias', () => {
   const bytes = text => new TextEncoder().encode(text).buffer;
@@ -159,6 +192,193 @@ test('chi-cuadrada: pares completos, tabla dispersa y referencia numerica conoci
   const oneRow = stats.calcularChiCuadrada([{varX:' x ',varY:'a'}, {varX:'x',varY:'b'}]);
   assert.equal(oneRow.estado, 'datos_insuficientes');
   assert.deepEqual(oneRow.matriz, [[1,1]]);
+});
+
+test('HU4: usa categorias y codigos nativos, no invierte puntajes transformados', () => {
+  const field = 'satisfaccion_global_carrera';
+  const r = competencies.summarizeRating([
+    { [field]:5, respuestas_originales:{[field]:'Totalmente de acuerdo'} },
+    { [field]:5, codigos_ordinales:{[field]:2} },
+    { [field]:5 }, // Escala original desconocida: no asumir que 5 equivale a 4.
+    { [field]:null },
+    { [field]:'No sabe' },
+    { [field]:'De acuerdo', calidad_datos:{[field]:{estado:'ruta_desconocida'}} },
+  ], field, 'Titulados');
+  assert.equal(r.maximo, 4);
+  assert.equal(r.validas, 2);
+  assert.equal(r.media, 3);
+  assert.equal(r.mediana, 3);
+  assert.equal(r.desviacion, 1.41);
+  assert.equal(r.porcentajeDesacuerdo, 50);
+  assert.equal(r.invalida, 1);
+  assert.equal(r.sinRespuesta, 1);
+  assert.equal(r.noSabe, 1);
+  assert.equal(r.rutaDesconocida, 1);
+  const efield = 'confianza_carrera_formadora';
+  const employersResult = competencies.summarizeRating([
+    {[efield]:'Totalmente desacuerdo'}, {[efield]:'Parcialmente de acuerdo'},
+    {[efield]:'Totalmente de acuerdo'}, {[efield]:'No sabe'},
+  ],efield,'Empleadores');
+  assert.equal(employersResult.media, 2);
+  assert.equal(employersResult.desviacion, 1);
+  assert.equal(employersResult.maximo, 3);
+  assert.deepEqual(employersResult.categorias.map(c=>c.cantidad),[1,1,1]);
+  assert.equal(employersResult.noSabe,1);
+  const empty = competencies.summarizeRating([],field,'Titulados');
+  assert.equal(empty.media,null);
+  assert.equal(empty.desviacion,null);
+  const single = competencies.summarizeRating([{[field]:'De acuerdo'}],field,'Titulados');
+  assert.equal(single.desviacion,null);
+});
+
+test('HU4: pertinencia respeta ruta y experiencia no se confunde con antiguedad de egreso', () => {
+  assert.equal(competencies.hasWorkExperience({situacion_laboral_actual:'Empleado en Organización',anios_vida_profesional_normalizados:0}),true);
+  assert.equal(competencies.hasWorkExperience({ha_trabajado_antes:'SI'}),true);
+  assert.equal(competencies.hasWorkExperience({anios_vida_profesional_normalizados:3}),true);
+  assert.equal(competencies.hasWorkExperience({anios_vida_profesional_normalizados:0,ha_trabajado_antes:'NO'}),false);
+  const field='pertinencia_laboral_carrera';
+  const r=competencies.summarizeRating([
+    {situacion_laboral_actual:'Empleado en Organización',[field]:'De acuerdo'},
+    {situacion_laboral_actual:'Emprendimiento Propio',[field]:'Totalmente de acuerdo'},
+  ],field,'Titulados');
+  assert.equal(r.validas,1);
+  assert.equal(r.noAplica,1);
+  assert.equal(r.media,3);
+});
+
+test('HU4: seleccion multiple usa personas como denominador y deduplica por persona', () => {
+  const r=competencies.summarizeSelections([
+    {selecciones_multiples:{aspectos_mejora:['Práctica','Practica','Teoría']}},
+    {aspectos_mejora:'Práctica; Teoría'},
+    {aspectos_mejora:null},
+  ],'aspectos_mejora');
+  assert.equal(r.respondieron,2);
+  assert.equal(r.sinRespuesta,1);
+  assert.equal(r.opciones.length,2);
+  assert.deepEqual(r.opciones.map(o=>o.cantidad),[2,2]);
+  assert.deepEqual(r.opciones.map(o=>o.porcentaje),[100,100]);
+});
+
+test('HU4: temas cuentan menciones por respuesta y conservan las no clasificadas', () => {
+  const field='habilidades_fundamentales';
+  const r=competencies.summarizeThemes([
+    {[field]:'IA, inteligencia artificial, comunicación y trabajo en equipo'},
+    {[field]:'Ingeniería de sistemas'}, // No confundir IA con un fragmento de ingeniería.
+    {[field]:''},
+  ],field);
+  assert.equal(r.respondieron,2);
+  assert.equal(r.sinRespuesta,1);
+  assert.equal(r.sinClasificar,1);
+  assert.equal(r.opciones.find(o=>o.nombre==='Inteligencia artificial').cantidad,1);
+  assert.equal(r.opciones.find(o=>o.nombre==='Comunicación').porcentaje,50);
+  assert.ok(!JSON.stringify(r).includes('Ingeniería de sistemas'));
+});
+
+test('HU4: archivos oficiales, bases conciliadas y exportacion sin textos individuales', () => {
+  const g=p.inspectRows(graduates.rows, graduates.type).rows;
+  const e=p.inspectRows(employers.rows, employers.type).rows;
+  const summary=competencies.resumirCompetencias(g,e);
+  assert.equal(summary.totalTitulados,148);
+  assert.equal(summary.conExperiencia,147);
+  assert.equal(summary.totalEmpleadores,53);
+  assert.equal(summary.titulados[0].validas,146);
+  assert.equal(summary.titulados[0].media,2.78);
+  assert.equal(summary.titulados[2].validas,108);
+  assert.equal(summary.mejoras[0].respondieron,147);
+  assert.equal(summary.mejoras[0].opciones[0].cantidad,105);
+  for (const item of [...summary.titulados,...summary.perfilEmpleadores,...summary.vinculacion]) {
+    assert.equal(item.validas+item.noSabe+item.sinRespuesta+item.noAplica+item.invalida+item.rutaDesconocida,item.base);
+    assert.equal(item.categorias.reduce((n,c)=>n+c.cantidad,0),item.validas);
+    assert.ok(item.media===null || item.media>=1 && item.media<=item.maximo);
+  }
+  const all=competencies.resumirCompetencias(g,e,'todos');
+  assert.equal(all.tituladosAnalizados,148);
+  assert.deepEqual(all.perfilEmpleadores,summary.perfilEmpleadores);
+  const exported=competencies.exportCompetencies(summary);
+  assert.equal(exported.estadisticas.length,21);
+  assert.ok(exported.categorias.every(r=>r.escala_maxima===(r.fuente==='Titulados'?4:3)));
+  assert.ok(!JSON.stringify(exported).includes('raw_data'));
+  assert.equal(competencies.resumirCompetencias([],[]).titulados[0].media,null);
+});
+
+test('HU5: valida parametros sin aceptar cortes ambiguos ni poblaciones arbitrarias', () => {
+  assert.deepEqual(reports.parseReportParameters(new URLSearchParams()),{scope:'experiencia',corte:3});
+  assert.deepEqual(reports.parseReportParameters(new URLSearchParams('scope=todos&corte=0')),{scope:'todos',corte:0});
+  for (const query of ['scope=admin','corte=-1','corte=31','corte=3.5','corte=','corte=Infinity']) {
+    assert.throws(()=>reports.parseReportParameters(new URLSearchParams(query)),/INVALID_REPORT_PARAMETERS/);
+  }
+});
+
+test('HU5: matrices de doble entrada concilian y no se exportan respuestas individuales', () => {
+  const g=p.inspectRows(graduates.rows,graduates.type).rows;
+  const e=p.inspectRows(employers.rows,employers.type).rows;
+  const report=reports.buildReport(g,e,{scope:'experiencia',corte:4},'2026-10-19T12:00:00.000Z');
+  assert.equal(report.titulados,148); assert.equal(report.empleadores,53);
+  assert.equal(report.cruce.total,98);
+  const observed=report.tablas.find(t=>t.nombre==='HU3_Matriz_observadas');
+  assert.deepEqual(observed.columnas,['Nivel cursado','Beca parcial','Beca total','Recursos propios','Total (personas)']);
+  assert.deepEqual(observed.filas[0],['Diplomado',2,1,63,66]);
+  assert.deepEqual(observed.filas.at(-1),['Total (personas)',5,3,90,98]);
+  const pct=report.tablas.find(t=>t.nombre==='HU3_Matriz_porcentajes');
+  for(const row of pct.filas.slice(0,-1)) assert.ok(Math.abs(row.slice(1,-1).reduce((a,b)=>a+b,0)-100)<1e-10);
+  const book=XLSX.utils.book_new();
+  for(const t of report.tablas){
+    assert.ok(t.nombre.length<=31);
+    assert.ok(t.filas.every(row=>row.length===t.columnas.length));
+    XLSX.utils.book_append_sheet(book,XLSX.utils.aoa_to_sheet([t.columnas,...t.filas].map(r=>r.map(p.safeSpreadsheetValue))),t.nombre);
+  }
+  const roundtrip=XLSX.read(XLSX.write(book,{type:'buffer',bookType:'xlsx'}),{type:'buffer'});
+  assert.equal(roundtrip.Sheets.HU3_Matriz_observadas.B2.v,2);
+  assert.equal(roundtrip.Sheets.HU3_Matriz_observadas.E6.v,98);
+  const serialized=JSON.stringify(report);
+  for(const personal of ['persona_privada@example.test','telefono_privado_123']) {
+    assert.ok(!JSON.stringify(reports.buildReport([{...g[0],email_contacto:personal,telefono_contacto:personal}],[],{scope:'todos',corte:3})).includes(personal));
+  }
+  assert.ok(!serialized.includes('raw_data'));
+  const empty=reports.buildReport([],[],{scope:'todos',corte:3});
+  assert.equal(empty.cruce.total,0);
+  assert.equal(empty.tablas[0].filas[0][1],null);
+});
+
+test('HU5: CSV escapa formulas, comillas, delimitadores y conserva ceros', () => {
+  const csv=reports.tableToCsv({nombre:'test',descripcion:'',columnas:['Texto','Valor'],filas:[['=HYPERLINK("x")',0],['A,"B"\nC',null]]});
+  assert.equal(csv.charCodeAt(0),0xfeff);
+  const parsed=require('papaparse').parse(csv.slice(1),{header:true});
+  assert.equal(parsed.data[0].Texto,"'=HYPERLINK(\"x\")");
+  assert.equal(parsed.data[0].Valor,'0');
+  assert.equal(parsed.data[1].Texto,'A,"B"\nC');
+  assert.equal(parsed.data[1].Valor,'');
+});
+
+test('HU5: informe academico conserva estructura, datos y limitaciones del producto final', async () => {
+  const g=p.inspectRows(graduates.rows,graduates.type).rows,e=p.inspectRows(employers.rows,employers.type).rows;
+  const report={...reports.buildReport(g,e,{scope:'experiencia',corte:3},'2026-10-19T12:00:00.000Z'),huella:'a'.repeat(64)};
+  const model=buildAcademicReport(report);
+  assert.equal(model.sections.length,8);
+  assert.ok(model.resumen.includes('148'));
+  assert.deepEqual(UMSS_COLORS,{azul:'#003770',rojo:'#E30613',blanco:'#FFFFFF'});
+  const states=model.sections[5].bloques.find(b=>b.tipo==='tabla'&&b.titulo.startsWith('Tabla 13')).filas;
+  assert.ok(states.some(r=>r[0]==='Simulación de sistemas'&&r[1]==='Pendiente'));
+  const bytes=await academicReportToPdf(report,{autores:'Equipo de prueba'},fs.readFileSync('public/brand/escudo-umss.jpg'));
+  const doc=await require('pdf-lib').PDFDocument.load(bytes);
+  assert.ok(doc.getPageCount()>=9);
+  assert.equal(doc.getAuthor(),'Equipo de prueba');
+  assert.equal(doc.getTitle(),model.titulo);
+  const empty={...reports.buildReport([],[],{scope:'todos',corte:3}),huella:'b'.repeat(64)};
+  assert.ok(!buildAcademicReport(empty).resumen.includes('NaN'));
+  await academicReportToPdf(empty);
+});
+
+test('HU5: servicio lee ambas tablas paginadas sin mutaciones y falla sin reporte parcial', async () => {
+  const calls=[];
+  const client={from(name){return{select(){return{order(){return{async range(from,to){calls.push([name,from,to]);return{data:[],error:null};}};}};}};}};
+  const report=await generateReport(client,{scope:'experiencia',corte:3});
+  assert.equal(calls.length,2);
+  assert.equal(report.huella.length,64);
+  const {huella,...content}=report;
+  assert.equal(huella,await p.sha256(JSON.stringify(content)));
+  const denied={from(){return{select(){return{order(){return{async range(){return{data:null,error:{code:'42501'}};}};}};}};}};
+  await assert.rejects(generateReport(denied,{scope:'todos',corte:3}));
 });
 
 test('duraciones: cero, ausencia, texto invalido, meses, años y politica explicita', () => {

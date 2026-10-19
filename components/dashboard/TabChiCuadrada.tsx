@@ -30,7 +30,7 @@ export function TabChiCuadrada({ summary: s }: { summary: FinancingSummary }) {
     const example = c.total ? selected ?? [0, 0] : null;
     return <section className="space-y-6" aria-labelledby="hu3-title">
         <header>
-            <p className="text-xs font-semibold uppercase tracking-widest text-umss-azul">HU3 · Financiamiento</p>
+            <p className="text-xs font-semibold uppercase tracking-widest text-umss-azul">Financiamiento</p>
             <h2 id="hu3-title" className="mt-2 text-2xl font-bold tracking-tight text-slate-900">¿Cómo financiaron su posgrado?</h2>
             <p className="mt-2 text-sm leading-relaxed text-slate-600">Antecedentes de programas concluidos o en curso. El análisis describe a quienes declaran haber realizado formación complementaria.</p>
         </header>
@@ -42,9 +42,10 @@ export function TabChiCuadrada({ summary: s }: { summary: FinancingSummary }) {
         <div className="grid items-start gap-5 lg:grid-cols-3">
             <div className="lg:col-span-2"><Distribution title="Fuentes utilizadas en programas cursados" description="Cada persona cuenta una vez en una categoría reconocida del instrumento original." data={s.distribucion} /></div>
             <aside className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
-                <h3 className="font-semibold text-slate-900">Qué aporta a la decisión</h3>
-                <p className="mt-3 text-sm leading-relaxed text-slate-700">{leader ? `La fuente más declarada es ${leader.nombre.toLowerCase()}. Este antecedente orienta preguntas sobre apoyos y convenios para próximos programas.` : 'Se necesitan respuestas con una fuente reconocida para identificar patrones de financiamiento.'}</p>
-                <p className="mt-3 text-sm leading-relaxed text-slate-700">La encuesta no distingue becas estatales de empresariales, ni pregunta por créditos educativos futuros. Esas alternativas no se pueden cuantificar con estos datos.</p>
+                <h3 className="font-semibold text-slate-900">Resumen del financiamiento declarado</h3>
+                <p className="mt-3 text-sm leading-relaxed text-slate-700">{leader ? `${leader.cantidad} de ${s.fuentesValidas} personas (${percentLabel(leader.cantidad / s.fuentesValidas * 100)}) utilizaron ${leader.nombre.toLowerCase()}, la fuente más frecuente de esta muestra.` : 'No hay fuentes reconocidas para identificar la más frecuente.'}</p>
+                <p className="mt-3 text-sm leading-relaxed text-slate-700">{s.fuentesValidas ? `${s.conBeca} personas declararon beca total o parcial. ${s.total-s.fuentesValidas} respuestas no aportan una fuente válida para esta distribución.` : `${s.total} respuestas quedan fuera de esta distribución.`}</p>
+                <p className="mt-3 text-xs leading-relaxed text-slate-600">Describe estudios cursados. No estima cómo se pagarán futuros programas.</p>
             </aside>
         </div>
 
@@ -57,7 +58,7 @@ export function TabChiCuadrada({ summary: s }: { summary: FinancingSummary }) {
                     </select>
                 </label>
             </div>
-            {!c.total ? <p className="mt-5 rounded-xl border border-dashed border-slate-200 p-8 text-center text-sm text-slate-500">No hay pares válidos de nivel cursado y financiamiento. Las distribuciones disponibles se conservan arriba.</p> : <>
+            {!c.total ? <p className="mt-3 text-sm text-slate-500">Sin respuestas con nivel y financiamiento válidos.</p> : <>
                 <div id="matrix-view-help" aria-live="polite" className="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm leading-relaxed text-slate-700">
                     <p><strong>{view === 'esperada' ? 'Valores esperados para χ²:' : view === 'porcentaje' ? 'Porcentaje dentro del nivel:' : 'Cantidad de personas:'}</strong> {view === 'esperada' ? 'muestra los valores teóricos si nivel y financiamiento no estuvieran asociados. Se calculan con los totales y se comparan con las respuestas reales para obtener χ². Pueden tener decimales: no son personas adicionales ni respuestas faltantes.' : view === 'porcentaje' ? 'muestra qué parte de cada nivel utilizó cada fuente. Cada fila suma 100% antes del redondeo; debajo aparece la cantidad real.' : 'muestra cuántas personas están en cada combinación. Lee el nivel a la izquierda y la fuente de financiamiento arriba.'}</p>
                     <p className="mt-2">Selecciona una celda para leer ese cruce. Los totales del borde siempre representan cantidades de personas.</p>
@@ -94,21 +95,22 @@ export function TabChiCuadrada({ summary: s }: { summary: FinancingSummary }) {
             </details>
         </article>
 
-        <article className={`rounded-2xl border p-5 sm:p-6 ${computable ? 'border-blue-100 bg-blue-50' : 'border-amber-200 bg-amber-50'}`}>
+        <article className={`rounded-2xl border p-5 sm:p-6 ${computable ? 'border-slate-200 bg-white' : 'border-amber-200 bg-amber-50'}`}>
             <p className="text-xs font-semibold uppercase tracking-wider text-slate-600">Contraste exploratorio · Chi-cuadrada de Pearson</p>
             <h3 className="mt-2 font-semibold text-slate-900">{title}</h3>
             <dl className="mt-5 grid gap-3 sm:grid-cols-3">
                 <div className="rounded-xl bg-white/80 p-4"><dt className="text-xs text-slate-600">Estadístico χ²</dt><dd className="mt-1 text-lg font-semibold tabular-nums">{c.chi2 === null ? '—' : c.chi2.toLocaleString('es-BO', { maximumFractionDigits: 3 })}</dd></div>
                 <div className="rounded-xl bg-white/80 p-4"><dt className="text-xs text-slate-600">Grados de libertad</dt><dd className="mt-1 text-lg font-semibold">{c.gradosLibertad || '—'}</dd></div>
-                <div className="rounded-xl bg-white/80 p-4"><dt className="text-xs text-slate-600">p-valor aproximado · α = 0,05</dt><dd className="mt-1 text-base font-semibold tabular-nums">{pLabel}</dd></div>
+                <div className="rounded-xl bg-white/80 p-4"><dt className="text-xs text-slate-600">p-valor de la aproximación</dt><dd className="mt-1 text-base font-semibold tabular-nums">{pLabel}</dd></div>
             </dl>
             <p className="mt-4 text-sm leading-relaxed text-slate-700">{computable ? 'El contraste explora asociación entre nivel cursado y fuente utilizada. No prueba causalidad, no demuestra independencia cuando no se rechaza la hipótesis y no predice cómo financiarán estudios futuros.' : c.estado === 'frecuencias_bajas' ? `El p-valor sirve para evaluar si hay evidencia de asociación. Aquí, ${c.celdasMenor5} de ${c.filas.length * c.columnas.length} combinaciones tienen un valor esperado menor de 5 (mínimo: ${c.minimaEsperada!.toLocaleString('es-BO', { maximumFractionDigits: 2 })}). Por eso la aproximación usual de chi-cuadrada no es fiable y se omite ese p-valor. No es un error de carga: las cantidades y los porcentajes sí se pueden analizar. Para concluir sobre asociación hace falta un método exacto o de permutación, aún no implementado.` : c.estado === 'error_numerico' ? 'La tabla sigue disponible. No se reemplaza un fallo de cálculo por p = 1 ni por una conclusión de independencia.' : 'Se requieren al menos dos niveles y dos fuentes con pares válidos. La tabla y las frecuencias siguen siendo útiles como descripción.'}</p>
             <details className="mt-4 text-xs leading-relaxed text-slate-600"><summary className="cursor-pointer font-medium text-slate-800">Supuestos y alcance del contraste</summary>
+                <p className="mt-3">Nivel de significación del análisis: α = {c.alfa.toLocaleString('es-BO')}. Es un criterio metodológico elegido antes de evaluar los resultados, no un valor estimado a partir de las respuestas. Cambiar alfa no corrige las frecuencias esperadas bajas ni cambia el p-valor.</p>
                 <p className="mt-3">H₀: nivel cursado y financiamiento utilizado no están asociados. Pearson sin corrección de Yates. Se exige ninguna esperada menor de 1 y al menos 80% de esperadas de 5 o más; para una tabla 2 × 2, todas deben ser de 5 o más. No se agrupan niveles distintos para forzar estos criterios.</p>
                 <p className="mt-2">Se asume una respuesta independiente por persona. Omitir duplicados exactos no garantiza esa independencia ni una muestra representativa de todos los titulados. Los resultados se limitan a quienes respondieron.</p>
                 <a className="mt-2 inline-block underline underline-offset-2" href="https://itl.nist.gov/div898/software/dataplot/refman1/auxillar/chistest.htm" target="_blank" rel="noreferrer">Referencia metodológica: NIST · Prueba de independencia</a>
             </details>
         </article>
-        <aside className="rounded-xl border border-slate-200 bg-white p-5 text-sm leading-relaxed text-slate-600"><h3 className="font-semibold text-slate-900">Para responder sobre futuros estudios</h3><p className="mt-2">HU3 requiere preguntar «¿Qué nivel desea estudiar?» y «¿Cuál sería su principal fuente de financiamiento?». Los datos disponibles describen estudios cursados; conservar esta diferencia evita atribuir intenciones que no se recogieron.</p></aside>
+        <details className="rounded-xl border border-slate-200 bg-white p-5 text-sm leading-relaxed text-slate-600"><summary className="cursor-pointer font-semibold text-slate-900">Alcance para futuros estudios</summary><p className="mt-3">Para analizar financiamiento futuro debe preguntarse «¿Qué nivel desea estudiar?» y «¿Cuál sería su principal fuente de financiamiento?». La encuesta disponible no distingue becas estatales de empresariales ni pregunta por créditos educativos futuros. Los datos de esta vista describen programas cursados.</p></details>
     </section>;
 }
