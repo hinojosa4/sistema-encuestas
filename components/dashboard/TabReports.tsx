@@ -4,7 +4,6 @@ import { Download, RefreshCw, FileSpreadsheet, FileText, Database, Layers, Check
 import { REPORT_VERSION, tableToCsv, type AnalysisReport } from '@/lib/reports';
 import { UserFacingError } from '@/lib/userMessages';
 import type { GraduateScope } from '@/lib/competencies';
-import type { AcademicMetadata } from '@/lib/academicReport';
 import { type Row } from '@/lib/importPipeline';
 import { createCleanDatasetWorkbook, cleanRowsToCsv, triggerDownload } from '@/lib/cleanDatasetExport';
 
@@ -37,7 +36,6 @@ export function TabReports({
     const [selectedTable, setSelectedTable] = useState('');
     const [exportError, setExportError] = useState('');
     const [exporting, setExporting] = useState(false);
-    const [academicMetadata, setAcademicMetadata] = useState<AcademicMetadata>({ autores: '', docente: '', periodo: '' });
     const [cleanExportFeedback, setCleanExportFeedback] = useState<string>('');
 
     const key = `${scope}:${corte}:${refresh}`;
@@ -111,7 +109,7 @@ export function TabReports({
                 const { academicReportToPdf } = await import('@/lib/academicPdf');
                 const response = await fetch('/brand/escudo-umss.jpg');
                 if (!response.ok) throw new Error('No se pudo cargar el escudo institucional.');
-                const bytes = await academicReportToPdf(report, academicMetadata, new Uint8Array(await response.arrayBuffer()));
+                const bytes = await academicReportToPdf(report, new Uint8Array(await response.arrayBuffer()));
                 saveFile(new Uint8Array(bytes), 'application/pdf', `${name}.pdf`);
             }
         } catch {
@@ -297,45 +295,6 @@ export function TabReports({
                         </details>
                     </article>
                 )}
-
-                {/* Metadatos para portada PDF */}
-                <fieldset className="rounded-xl border border-slate-200 bg-white p-4">
-                    <legend className="px-2 text-xs font-bold uppercase tracking-wider text-slate-700">
-                        Metadatos para el Informe Académico (Opcional)
-                    </legend>
-                    <div className="mt-3 grid gap-3 sm:grid-cols-3">
-                        <label className="text-xs font-medium text-slate-700 sm:col-span-3">
-                            Autor o integrantes del equipo
-                            <input
-                                value={academicMetadata.autores}
-                                maxLength={240}
-                                onChange={e => setAcademicMetadata(v => ({ ...v, autores: e.target.value }))}
-                                className="mt-1 block w-full rounded-lg border border-slate-300 p-2.5 text-xs sm:text-sm"
-                                placeholder="Nombres de los integrantes del comité o evaluadores"
-                            />
-                        </label>
-                        <label className="text-xs font-medium text-slate-700 sm:col-span-2">
-                            Docente / Asesor
-                            <input
-                                value={academicMetadata.docente}
-                                maxLength={120}
-                                onChange={e => setAcademicMetadata(v => ({ ...v, docente: e.target.value }))}
-                                className="mt-1 block w-full rounded-lg border border-slate-300 p-2.5 text-xs sm:text-sm"
-                                placeholder="Docente de la materia o par evaluador"
-                            />
-                        </label>
-                        <label className="text-xs font-medium text-slate-700">
-                            Gestión académica
-                            <input
-                                value={academicMetadata.periodo}
-                                maxLength={80}
-                                onChange={e => setAcademicMetadata(v => ({ ...v, periodo: e.target.value }))}
-                                className="mt-1 block w-full rounded-lg border border-slate-300 p-2.5 text-xs sm:text-sm"
-                                placeholder="II/2026"
-                            />
-                        </label>
-                    </div>
-                </fieldset>
 
                 {/* Grid de Reportes Analíticos */}
                 <div className="grid items-start gap-4 lg:grid-cols-3">

@@ -4,6 +4,8 @@ import { ResponsiveContainer, RadarChart, PolarGrid, PolarAngleAxis, PolarRadius
 import type { CompetencySummary, GraduateScope, MultipleSummary, RatingSummary } from '@/lib/competencies';
 import { themeRules } from '@/lib/competencies';
 import { Distribution, Indicator, percentLabel } from './AnalyticsUI';
+import { calcularDistribucionFrecuencias } from '@/lib/statistics';
+import type { Row } from '@/lib/importPipeline';
 
 const scoreLabel = (value: number | null) => value === null ? '—' : value.toLocaleString('es-BO', { maximumFractionDigits: 2 });
 
@@ -80,7 +82,7 @@ function CurricularGapSynthesis({ summary: s }: { summary: CompetencySummary }) 
         <article className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-sm space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-100 gap-2">
                 <div>
-                    <h3 className="font-bold text-slate-900 text-lg">Diagnóstico de Brechas Formativas para la Malla Curricular (HU4)</h3>
+                    <h3 className="font-bold text-slate-900 text-lg">Diagnóstico de brechas formativas para la malla curricular</h3>
                     <p className="text-xs text-slate-500">
                         Síntesis comparativa entre competencias técnicas y transversales adquiridas frente a las demandas del mercado laboral.
                     </p>
@@ -177,24 +179,116 @@ function CurricularGapSynthesis({ summary: s }: { summary: CompetencySummary }) 
     );
 }
 
-export function TabEmpleadores({ summary: s, onScope }: { summary: CompetencySummary; onScope: (scope: GraduateScope) => void }) {
-    const [section, setSection] = useState<'titulados' | 'mejoras' | 'empleadores'>('titulados');
-    const sections = [{ id: 'titulados', label: 'Formación y trabajo' }, { id: 'mejoras', label: 'Mejoras curriculares' }, { id: 'empleadores', label: 'Perspectiva de empleadores' }] as const;
-    const satisfaction = s.titulados[0];
-    return <section className="space-y-6" aria-labelledby="hu4-title">
-        {/* Banner institucional de alcance metodológico de la HU4 */}
-        <div className="rounded-xl border border-blue-200 bg-blue-50/80 p-4 text-xs leading-relaxed text-slate-700 shadow-sm">
-            <div className="flex items-center gap-1.5 font-bold uppercase tracking-wide text-umss-azul mb-1">
-                <span>Historia de Usuario 4 · Evaluación de Brechas en Competencias Profesionales</span>
-            </div>
-            <p>
-                <strong>Población analizada:</strong> Titulados con experiencia laboral demostrada en el mercado ({s.conExperiencia} de {s.totalTitulados} respuestas). 
-                <br />
-                <strong>Escalas de medición nativas:</strong> El cuestionario oficial empleó escalas Likert de 4 puntos (1–4) para titulados y 3 puntos (1–3) para empleadores. Las medias, medianas y desviaciones estándar se calculan sobre las escalas originales para preservar la fidelidad estadística requerida por los pares evaluadores de ARCUSUR.
-            </p>
-        </div>
+function EmployerOrganizationsProfile({ rows }: { rows: Row[] }) {
+    const total = rows.length;
+    const tipoOrg = calcularDistribucionFrecuencias(rows.map(r => String(r.tipo_organizacion ?? '').trim()).filter(Boolean)).sort((a, b) => b.cantidad - a.cantidad);
+    const tamanoOrder = [
+        'Micro (hasta 10 funcionarios)',
+        'Pequeña (entre 11 a 30 funcionarios)',
+        'Mediana (entre 31 a 99 funcionarios)',
+        'Grande (100 funcionarios o más)',
+    ];
+    const tamanoOrg = calcularDistribucionFrecuencias(rows.map(r => String(r.tamano_organizacion ?? '').trim()).filter(Boolean)).sort((a, b) => {
+        const idxA = tamanoOrder.indexOf(a.nombre);
+        const idxB = tamanoOrder.indexOf(b.nombre);
+        if (idxA >= 0 && idxB >= 0) return idxA - idxB;
+        return b.cantidad - a.cantidad;
+    });
+    const rubroOrg = calcularDistribucionFrecuencias(rows.map(r => String(r.rubro_sector ?? '').trim()).filter(Boolean)).sort((a, b) => b.cantidad - a.cantidad);
+    const contratacionHistorica = calcularDistribucionFrecuencias(rows.map(r => String(r.ha_contratado_sistemas ?? '').trim()).filter(Boolean)).sort((a, b) => b.cantidad - a.cantidad);
+    const probabilidadFutura = calcularDistribucionFrecuencias(rows.map(r => String(r.probabilidad_incorporacion_futura ?? '').trim()).filter(Boolean)).sort((a, b) => b.cantidad - a.cantidad);
+    const nivelDemandado = calcularDistribucionFrecuencias(rows.map(r => String(r.nivel_formacion_demandado ?? '').trim()).filter(Boolean)).sort((a, b) => b.cantidad - a.cantidad);
+    const medioConvocatoria = calcularDistribucionFrecuencias(rows.map(r => String(r.medio_convocatoria ?? '').trim()).filter(Boolean)).sort((a, b) => b.cantidad - a.cantidad);
 
-        <header><p className="text-xs font-semibold uppercase tracking-widest text-umss-azul">Formación y competencias</p><h2 id="hu4-title" className="mt-2 text-2xl font-bold tracking-tight text-slate-900">¿Qué formación aporta y qué conviene mejorar?</h2><p className="mt-2 text-sm leading-relaxed text-slate-600">Diagnóstico de percepciones de titulados y empleadores. Las dos perspectivas se presentan por separado y conservan sus escalas originales.</p></header>
+    if (total === 0) {
+        return (
+            <article className="rounded-2xl border border-dashed border-slate-200 bg-white p-8 text-center text-sm text-slate-500">
+                No hay respuestas de empleadores cargadas actualmente en el sistema.
+            </article>
+        );
+    }
+
+    return (
+        <div className="space-y-6">
+            <header className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-sm">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
+                    <div>
+                        <h3 className="text-lg font-bold text-slate-900">Perfil del Sector Productivo y Demanda Laboral (Informe ARCUSUR)</h3>
+                        <p className="mt-1 text-xs sm:text-sm text-slate-500">
+                            Caracterización estructural de las {total} organizaciones empleadoras encuestadas, tamaño institucional, sector económico y canales de contratación (Capítulo 4 del informe).
+                        </p>
+                    </div>
+                    <span className="self-start sm:self-auto rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-umss-azul border border-blue-200">
+                        {total} Organizaciones
+                    </span>
+                </div>
+            </header>
+
+            <div className="grid gap-5 lg:grid-cols-2">
+                <Distribution
+                    title="Tipo de organización"
+                    description="Distribución entre organizaciones públicas y privadas (Tabla 12 del informe)."
+                    data={tipoOrg}
+                    tone="blue"
+                />
+                <Distribution
+                    title="Tamaño de la organización"
+                    description="Clasificación por número de dependientes o funcionarios (Tabla 13 del informe)."
+                    data={tamanoOrg}
+                    tone="teal"
+                />
+            </div>
+
+            <div className="grid gap-5 lg:grid-cols-2">
+                <Distribution
+                    title="Rubro o sector de actividad"
+                    description="Sectores empresariales principales que demandan profesionales en Sistemas (Tabla 14 del informe)."
+                    data={rubroOrg}
+                    tone="blue"
+                />
+                <Distribution
+                    title="Contratación de ingenieros en los últimos 5 años"
+                    description="Histórico de incorporación laboral efectiva de titulados de la carrera (Tabla 15 del informe)."
+                    data={contratacionHistorica}
+                    tone="teal"
+                />
+            </div>
+
+            <div className="grid gap-5 lg:grid-cols-3">
+                <Distribution
+                    title="Probabilidad de contratación futura"
+                    description="Proyección de incorporación en los próximos años (Tabla 16 del informe)."
+                    data={probabilidadFutura}
+                    tone="blue"
+                />
+                <Distribution
+                    title="Nivel de formación demandado"
+                    description="Grado académico requerido por las organizaciones (Tabla 17 del informe)."
+                    data={nivelDemandado}
+                    tone="teal"
+                />
+                <Distribution
+                    title="Medios de convocatoria y selección"
+                    description="Canales prioritarios de reclutamiento de talento (Tabla 18 del informe)."
+                    data={medioConvocatoria}
+                    tone="blue"
+                />
+            </div>
+        </div>
+    );
+}
+
+export function TabEmpleadores({ summary: s, onScope, empleadores = [] }: { summary: CompetencySummary; onScope: (scope: GraduateScope) => void; empleadores?: Row[] }) {
+    const [section, setSection] = useState<'titulados' | 'mejoras' | 'organizaciones' | 'empleadores'>('titulados');
+    const sections = [
+        { id: 'titulados', label: 'Formación y trabajo' },
+        { id: 'mejoras', label: 'Mejoras curriculares' },
+        { id: 'organizaciones', label: 'Perfil de organizaciones empleadoras' },
+        { id: 'empleadores', label: 'Percepción y competencias' },
+    ] as const;
+    const satisfaction = s.titulados[0];
+    return <section className="space-y-6" aria-labelledby="competencias-title">
+        <header><p className="text-xs font-semibold uppercase tracking-widest text-umss-azul">Formación y competencias</p><h2 id="competencias-title" className="mt-2 text-2xl font-bold tracking-tight text-slate-900">¿Qué formación aporta y qué conviene mejorar?</h2><p className="mt-2 text-sm leading-relaxed text-slate-600">Diagnóstico de percepciones de titulados y empleadores. Las dos perspectivas se presentan por separado y conservan sus escalas originales.</p></header>
         <div className="grid gap-4 sm:grid-cols-3">
             <Indicator label="Titulados en este análisis" value={s.tituladosAnalizados} detail={<>De {s.totalTitulados} respuestas; {s.conExperiencia} declaran experiencia laboral.</>} />
             <Indicator label="Satisfacción con la formación" value={scoreLabel(satisfaction.media)} unit="de 4" detail={<>{satisfaction.validas} respuestas válidas. Desviación muestral: {scoreLabel(satisfaction.desviacion)}. Es un índice de acuerdo.</>} />
@@ -211,6 +305,7 @@ export function TabEmpleadores({ summary: s, onScope }: { summary: CompetencySum
         <nav className="flex flex-wrap gap-2" aria-label="Perspectivas de formación y competencias">{sections.map(item => <button key={item.id} type="button" aria-pressed={section === item.id} onClick={() => setSection(item.id)} className={`rounded-lg border px-4 py-3 text-sm font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-700 ${section === item.id ? 'border-teal-800 bg-teal-800 text-white' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'}`}>{item.label}</button>)}</nav>
         {section === 'titulados' && <RatingPanel items={s.titulados} title="Valoración de la formación desde los titulados" />}
         {section === 'mejoras' && <MultiplePanel items={s.mejoras} />}
+        {section === 'organizaciones' && <EmployerOrganizationsProfile rows={empleadores} />}
         {section === 'empleadores' && <div className="space-y-6">
             <RatingPanel items={s.perfilEmpleadores} title="Percepción del perfil y desempeño profesional" />
             <MultiplePanel items={s.demanda} thematic />

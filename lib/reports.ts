@@ -150,9 +150,14 @@ export function buildReport(rawGraduates: Row[], rawEmployers: Row[], params: Re
         [e,'tipo_organizacion','Sector_Tipo_Organizacion'], [e,'tamano_organizacion','Sector_Tamano'],
         [e,'rubro_sector','Sector_Rubro'], [e,'nivel_formacion_demandado','Sector_Formacion'],
         [e,'probabilidad_incorporacion_futura','Sector_Contratacion'],
+        [e,'ha_contratado_sistemas','Sector_Historico_Contratacion'],
+        [e,'medio_convocatoria','Sector_Medio_Convocatoria'],
     ] as const) {
         tables.push(table(name, 'Distribución de respuestas declaradas no vacías; no representa estimaciones de toda la población.', calcularDistribucionFrecuencias(rows.map(r=>String(r[field] ?? '').trim()).filter(Boolean)), ['nombre','cantidad','porcentaje']));
     }
+    tables.push(table('Perfil_Remuneracion', 'Remuneración promedio mensual de titulados empleados en organizaciones (Tabla 22).', hu1.remuneracion, ['nombre','cantidad','porcentaje']));
+    tables.push(table('HU2_Lugares_Cursados', 'Institución donde cursó estudios de posgrado (Tabla 8).', hu2.lugaresCursados, ['nombre','cantidad','porcentaje']));
+    tables.push(table('HU2_Lugares_Preferidos', 'Organización educativa por la que optaría para futuros posgrados (Tabla 10).', hu2.lugaresPreferidos, ['nombre','cantidad','porcentaje']));
     const radarGroups = [
         { titulo: 'Perfil y competencias laborales', items: hu4.perfilEmpleadores.filter(r => ['confianza_carrera_formadora','consistencia_titulo_competencias','coherencia_perfil_desempeno','evidencia_competencias_laborales','valores_etica_responsabilidad'].includes(r.campo)) },
         { titulo: 'Vinculación institucional', items: hu4.vinculacion.filter(r => ['busqueda_talento_umss','vinculos_oportunidades_laborales','participacion_difusion_pasantias','consulta_retroalimentacion_plan','consulta_procesos_autoevaluacion'].includes(r.campo)) },
