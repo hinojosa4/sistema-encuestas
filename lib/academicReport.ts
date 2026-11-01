@@ -29,7 +29,7 @@ export function buildAcademicReport(r: AnalysisReport) {
     const stats = academicRows(r,'HU4_Estadisticos');
     const ratings = stats.filter(row=>row.fuente==='Titulados');
     const improvements = academicRows(r,'HU4_Mejoras').filter(row=>row.pregunta==='Aspectos por mejorar').sort((a,b)=>Number(b.cantidad)-Number(a.cantidad));
-    const topics = academicRows(r,'HU4_Demanda').filter(row=>row.pregunta==='Áreas y tecnologías emergentes').sort((a,b)=>Number(b.cantidad)-Number(a.cantidad));
+    const topics = academicRows(r,'Areas_Emergentes').map(row => ({ nombre: row.nombre, cantidad: row.cantidad, porcentaje: row.porcentajeTotal })).sort((a,b)=>Number(b.cantidad)-Number(a.cantidad));
     const occupation = metric('Ocupación actual (%)');
     const interest = metric('Interesados en posgrado');
     const experience = metric('Experiencia profesional: media (años)');
@@ -84,7 +84,8 @@ export function buildAcademicReport(r: AnalysisReport) {
             text(`La encuesta de empleadores contiene ${r.empleadores} respuestas. Permite conocer la composición de las organizaciones y sus percepciones; no constituye un censo de vacantes ni permite cuantificar contrataciones efectivas futuras.`),
             frequencyTable('Tabla 6 Tipo de organización','Sector_Tipo_Organizacion','Base: organizaciones con tipo declarado. La presencia de una respuesta pública o privada no acredita por sí sola el trabajo de campo del equipo.'),
             frequencyTable('Tabla 7 Nivel de formación demandado por organizaciones','Sector_Formacion','La demanda de un empleador no sustituye el nivel de posgrado deseado por un titulado.'),
-            table('Tabla 8 Áreas emergentes mencionadas con mayor frecuencia',['Tema','Menciones','Porcentaje'],topics.slice(0,6).map(t=>[String(t.nombre),cellNumber(t.cantidad),pct(t.porcentaje)]),'Clasificación preliminar por palabras clave; una respuesta puede mencionar varios temas. No mide insuficiencia ni número de puestos disponibles.',[0.64,0.16,0.2]),
+            table('Tabla 8 Áreas emergentes mencionadas',['Tema','Menciones','% del total'],topics.map(t=>[String(t.nombre),cellNumber(t.cantidad),pct(t.porcentaje)]),`Clasificación multietiqueta revisable. Denominador: ${r.empleadores} respuestas de empleadores. Los porcentajes pueden sumar más de 100%.`,[0.64,0.16,0.2]),
+            table('Tabla 8a Bases de áreas emergentes',['Total','Clasificables','Sin respuesta','Sin clasificar','Revisar'],academicRows(r,'Areas_Bases').map(t=>[t.total,t.clasificables,t.sin_respuesta,t.sin_clasificar,t.requieren_revision]),`Sin clasificar incluye No sabe (${academicRows(r,'Areas_Bases')[0]?.no_sabe ?? 0}) y no interpretable (${academicRows(r,'Areas_Bases')[0]?.no_interpretable ?? 0}); requiere revisión humana.`),
             text(methodology.filter(row=>String(row.indicador).startsWith('Base temática:')).map(row=>`${row.indicador}: ${row.valor}`).join(' ') || 'No hay bases temáticas disponibles. La ausencia de coincidencias no equivale a ausencia de necesidades.'),
             sub('Percepción de la formación y competencias'),
             table('Tabla 9 Valoración de titulados sobre su formación',['Pregunta','n válido','Media','Mediana','Desv.'],ratings.map(t=>[String(t.pregunta),cellNumber(t.validas),formatAcademicNumber(t.media,2),formatAcademicNumber(t.mediana,2),formatAcademicNumber(t.desviacion_muestral,2)]),'Escala nativa de acuerdo 1 a 4. Desviación muestral solo con al menos dos respuestas. No comparar directamente con la escala 1 a 3 de empleadores.',[0.5,0.12,0.12,0.13,0.13]),
@@ -116,15 +117,22 @@ export function buildAcademicReport(r: AnalysisReport) {
         { titulo:'7 Referencias bibliográficas', bloques:[
             text('Carrera de Ingeniería en Sistemas, Universidad Mayor de San Simón. (s. f.-a). Encuesta de opinión a titulados de Ingeniería en Sistemas [Conjunto de datos no publicado proporcionado por el docente].'),
             text('Carrera de Ingeniería en Sistemas, Universidad Mayor de San Simón. (s. f.-b). Encuesta empleadores II Sistemas [Conjunto de datos no publicado proporcionado por el docente].'),
-            text('Guía metodológica y técnica integral Análisis de Mercado y Herramienta de Recolección de Datos Enfoque ARCUSUR. (s. f.). [Material de asignatura proporcionado por el docente, archivo TSS_2.pdf].'),
+            text('Actividad II. Análisis de mercado y herramienta de recolección de datos (enfoque ARCUSUR). (s. f.). [Informe académico proporcionado para contraste; archivo Actividad II TSS Actualizada.pdf].'),
             text('National Institute of Standards and Technology. (s. f.). Chi-square independence test. Dataplot. https://itl.nist.gov/div898/software/dataplot/refman1/auxillar/chistest.htm'),
+            text('SciPy. (s. f.). fisher_exact. Definición bilateral de la prueba exacta con márgenes fijos. https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.fisher_exact.html'),
             text('Universidad Mayor de San Simón. (s. f.). Escudo UMSS. https://www.umss.edu.bo/escudo-umss/'),
         ]},
         { titulo:'Anexo Trazabilidad y alcance', bloques:[
+            sub('Cruces exploratorios A, B, C y D'),
+            ...academicRows(r,'Cruces_Contrastes').flatMap(row => [
+                text(`${row.titulo}. ${row.reglas} Base: ${row.base_valida} de ${row.total}; excluidos: ${row.excluidos}.`),
+                table(`Matriz ${row.cruce}`,['Fila','Columna','Observado','Esperado'],academicRows(r,`Cruce_${row.cruce}_Celdas`).map(c=>[c.fila,c.columna,c.observada,formatAcademicNumber(c.esperada,3)]),'Solo pares válidos; las frecuencias esperadas son teóricas.'),
+                text(`Pearson sin Yates: chi²=${formatAcademicNumber(row.chi2,4)}, gl=${row.gl}; estado: ${row.estado_pearson}; p válido=${formatAcademicNumber(row.p_pearson_valido,6)}. Fisher bilateral=${formatAcademicNumber(row.p_fisher_bilateral,6)}. V de Cramér=${formatAcademicNumber(row.v_cramer,4)}. Mínima esperada=${formatAcademicNumber(row.esperada_minima,3)}; celdas <5: ${row.esperadas_menor5}. Método preferido: ${row.metodo_preferido}. Alfa=${row.alfa}. Sin causalidad; no rechazar no demuestra independencia.`),
+            ]),
             text(`Generado en UTC: ${r.generadoUTC}. Versión de método: ${r.version}. Huella SHA-256 del contenido analítico: ${r.huella}. Identifica la generación de datos, no el archivo PDF ni la autoría académica. No es una firma institucional.`),
+            text(`Versión de datos (SHA-256): ${r.datosVersion ?? 'No registrada en esta generación local'}. Las tres exportaciones generales se derivan del mismo reporte.`),
             text(`Población de competencias: ${cohort}. Corte exploratorio de experiencia: ${r.parametros.corte} años. El detalle completo de frecuencias, exclusiones, escalas y reglas de clasificación se conserva en el Excel de análisis de la misma generación.`),
             table('Tabla A1 Procedencia registrada',['Origen','Archivo','Respuestas'],academicRows(r,'Procedencia').map(row=>[String(row.tipo),String(row.archivo),cellNumber(row.respuestas)]),'Se presenta lo registrado en la base. Los nombres o huellas ausentes no se inventan.',[0.2,0.65,0.15]),
-            text('La generación automática organiza evidencia y propuestas para revisión. No reemplaza la verificación académica de autoría, referencias, instrumentos, consentimiento ni trabajo de campo exigido por la asignatura. El equipo debe documentar las empresas participantes según las instrucciones del docente sin publicar datos de contacto de las personas.'),
         ]},
     ];
     const resumen = `Este informe analiza ${r.titulados} respuestas de titulados y ${r.empleadores} de empleadores. ${occupation?.base_valida ? `La ocupación actual declarada alcanza ${pct(occupation.valor)} en su base válida.` : 'No hay una base válida para informar ocupación.'} ${areas.length ? `La mayor preferencia temática de posgrado corresponde a ${areas[0].nombre}.` : 'No hay preferencias temáticas utilizables.'} Los resultados permiten un diagnóstico descriptivo; faltan datos para evaluar preferencias de nivel y financiamiento futuro y suficiencia por competencia. La simulación de escenarios sigue pendiente.`;

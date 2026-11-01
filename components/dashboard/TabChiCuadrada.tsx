@@ -4,22 +4,39 @@ import type { FinancingSummary } from '@/lib/postgraduate';
 import { Distribution, Indicator, percentLabel } from './AnalyticsUI';
 
 type MatrixView = 'cantidad' | 'porcentaje' | 'esperada';
+type TableStructure = 'detallada' | 'agrupada';
+
 export function TabChiCuadrada({ summary: s }: { summary: FinancingSummary }) {
     const [view, setView] = useState<MatrixView>('cantidad');
+    const [structure, setStructure] = useState<TableStructure>('detallada');
     const [selected, setSelected] = useState<[number, number] | null>(null);
-    const c = s.chi;
+
+    const c = structure === 'detallada' ? s.chi : (s.chiAgrupada ?? s.chi);
     const leader = s.distribucion[0];
-    const computable = c.estado === 'calculada';
-    const title = computable
-        ? c.existeDependencia ? 'Se encontró evidencia de asociación' : 'No se encontró evidencia suficiente de asociación'
-        : c.estado === 'frecuencias_bajas' ? 'Hay pocas respuestas en varias combinaciones para concluir si existe asociación'
-            : c.estado === 'error_numerico' ? 'No se pudo obtener un p-valor válido' : 'Faltan categorías para contrastar asociación';
-    const pLabel = c.pValor === null
-        ? c.estado === 'frecuencias_bajas' ? 'No interpretable con esta aproximación' : c.estado === 'error_numerico' ? 'No se pudo calcular' : 'Faltan categorías para calcularlo'
-        : c.pValor < 0.0001 ? '< 0,0001' : c.pValor.toLocaleString('es-BO', { minimumFractionDigits: 4, maximumFractionDigits: 4 });
+    const is2x2 = c.filas.length === 2 && c.columnas.length === 2;
+    const computable = c.estado === 'calculada' || (is2x2 && c.fisherP !== null);
+
+    const title = is2x2 && c.fisherP !== null
+        ? c.fisherP < c.alfa
+            ? 'Se encontró evidencia de asociación (Fisher exacto bilateral)'
+            : 'No se encontró evidencia suficiente de asociación (Fisher exacto bilateral)'
+        : computable
+            ? c.existeDependencia ? 'Se encontró evidencia de asociación' : 'No se encontró evidencia suficiente de asociación'
+            : c.estado === 'frecuencias_bajas' ? 'Hay pocas respuestas en varias combinaciones para la aproximación usual de Pearson'
+                : c.estado === 'error_numerico' ? 'No se pudo obtener un p-valor válido' : 'Faltan categorías para contrastar asociación';
+
+    const pLabel = is2x2 && c.fisherP !== null
+        ? c.fisherP.toLocaleString('es-BO', { minimumFractionDigits: 4, maximumFractionDigits: 4 })
+        : c.pValor === null
+            ? c.estado === 'frecuencias_bajas' ? 'No interpretable con esta aproximación' : c.estado === 'error_numerico' ? 'No se pudo calcular' : 'Faltan categorías para calcularlo'
+            : c.pValor < 0.0001 ? '< 0,0001' : c.pValor.toLocaleString('es-BO', { minimumFractionDigits: 4, maximumFractionDigits: 4 });
+
     const modes: { value: MatrixView; label: string }[] = [
-        { value: 'cantidad', label: 'Cantidad de personas' }, { value: 'porcentaje', label: 'Porcentaje dentro del nivel' }, { value: 'esperada', label: 'Valores esperados para χ²' },
+        { value: 'cantidad', label: 'Cantidad de personas' },
+        { value: 'porcentaje', label: 'Porcentaje dentro del nivel' },
+        { value: 'esperada', label: 'Valores esperados para χ²' },
     ];
+
     const scale = [
         { color: 'bg-slate-100', label: '0%' },
         { color: 'bg-emerald-100', label: 'Más de 0 y menos de 10%' },
@@ -27,18 +44,32 @@ export function TabChiCuadrada({ summary: s }: { summary: FinancingSummary }) {
         { color: 'bg-emerald-400', label: '30 a menos de 70%' },
         { color: 'bg-emerald-800', label: '70 a 100%' },
     ];
+
     const example = c.total ? selected ?? [0, 0] : null;
+
     return <section className="space-y-6" aria-labelledby="hu3-title">
+        {/* Banner de encuadre y alcance de la HU3 */}
+        <div className="rounded-xl border border-blue-200 bg-blue-50/80 p-4 text-xs leading-relaxed text-slate-700 shadow-sm">
+            <div className="flex items-center gap-1.5 font-bold uppercase tracking-wide text-umss-azul mb-1">
+                <span>Historia de Usuario 3 · Identificación de Mecanismos de Financiamiento</span>
+            </div>
+            <p>
+                <strong>Nota metodológica y de alcance:</strong> La HU3 solicita identificar las fuentes de financiamiento estimadas para estudios futuros cruzadas con el posgrado deseado. Debido a que el cuestionario oficial de recolección indagó los antecedentes (<em>financiamiento utilizado</em> × <em>nivel cursado</em>), el sistema procesa rigurosamente estos datos reales para evaluar la dependencia económica de la cohorte sin fabricar intenciones futuras no consultadas.
+            </p>
+        </div>
+
         <header>
             <p className="text-xs font-semibold uppercase tracking-widest text-umss-azul">Financiamiento</p>
             <h2 id="hu3-title" className="mt-2 text-2xl font-bold tracking-tight text-slate-900">¿Cómo financiaron su posgrado?</h2>
             <p className="mt-2 text-sm leading-relaxed text-slate-600">Antecedentes de programas concluidos o en curso. El análisis describe a quienes declaran haber realizado formación complementaria.</p>
         </header>
+
         <div className="grid gap-4 sm:grid-cols-3">
             <Indicator label="Personas que indicaron cómo pagaron su posgrado" value={s.fuentesValidas} detail={<>De {s.total} titulados encuestados, este grupo cursó o cursa formación complementaria y declaró una fuente de financiamiento reconocida.</>} />
             <Indicator label="Fuente más frecuente" value={leader ? percentLabel(leader.cantidad / s.fuentesValidas * 100) : '—'} detail={leader ? `${leader.nombre} · ${leader.cantidad} respuestas` : 'Sin fuentes reconocidas.'} />
             <Indicator label="Beca total o parcial" value={percentLabel(s.porcentajeBeca)} detail={<>{s.conBeca} de {s.fuentesValidas} fuentes válidas. No mide acceso actual a becas ni necesidad futura.</>} />
         </div>
+
         <div className="grid items-start gap-5 lg:grid-cols-3">
             <div className="lg:col-span-2"><Distribution title="Fuentes utilizadas en programas cursados" description="Cada persona cuenta una vez en una categoría reconocida del instrumento original." data={s.distribucion} /></div>
             <aside className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
@@ -49,19 +80,55 @@ export function TabChiCuadrada({ summary: s }: { summary: FinancingSummary }) {
             </aside>
         </div>
 
+        {/* Tabla de Contingencia con selector de estructura para resolver la doble visualización */}
         <article className="min-w-0 rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
-            <div className="flex flex-wrap items-start justify-between gap-4">
-                <div><h3 className="font-semibold text-slate-900">Nivel cursado × financiamiento utilizado</h3><p id="matrix-help" className="mt-2 text-sm leading-relaxed text-slate-600">Se cruzan {c.total} personas con nivel y financiamiento reconocidos. {s.excluidosCruce} respuestas no entran en esta tabla.</p></div>
-                <label className="flex flex-wrap items-center gap-2 text-sm font-medium text-slate-700">Ver tabla como
-                    <select value={view} onChange={e => setView(e.target.value as MatrixView)} aria-describedby={c.total ? 'matrix-help matrix-view-help' : 'matrix-help'} className="max-w-full rounded-lg border border-slate-300 bg-white p-2 text-sm text-slate-800 focus-visible:outline-2 focus-visible:outline-blue-700">
-                        {modes.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
-                    </select>
-                </label>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-slate-100 gap-3">
+                <div>
+                    <h3 className="font-semibold text-slate-900 text-lg">
+                        {structure === 'detallada' ? 'Nivel cursado × financiamiento utilizado (Matriz completa)' : 'Nivel cursado × financiamiento (Matriz agrupada 2×2 · Cruce A)'}
+                    </h3>
+                    <p id="matrix-help" className="mt-1 text-xs text-slate-500">
+                        {structure === 'detallada'
+                            ? `Se cruzan ${c.total} personas: 4 niveles individuales × 3 fuentes de financiamiento. ${s.excluidosCruce} respuestas no entran en esta tabla.`
+                            : `Se cruzan ${c.total} personas: Diplomado frente a Posgrados superiores (Especialidad/Maestría/Doctorado) × Recursos propios frente a Beca.`}
+                    </p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                    <div className="inline-flex rounded-lg border border-slate-300 bg-slate-50 p-1 text-xs font-medium">
+                        <button
+                            type="button"
+                            onClick={() => { setStructure('detallada'); setSelected(null); }}
+                            className={`rounded-md px-3 py-1.5 transition-colors ${structure === 'detallada' ? 'bg-white font-bold text-umss-azul shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}
+                        >
+                            Matriz detallada (4×3)
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => { setStructure('agrupada'); setSelected(null); }}
+                            className={`rounded-md px-3 py-1.5 transition-colors ${structure === 'agrupada' ? 'bg-white font-bold text-umss-azul shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}
+                        >
+                            Matriz agrupada (2×2 · Cruce A)
+                        </button>
+                    </div>
+
+                    <label className="flex items-center gap-1.5 text-xs font-medium text-slate-700">
+                        <span>Ver como:</span>
+                        <select
+                            value={view}
+                            onChange={e => setView(e.target.value as MatrixView)}
+                            aria-describedby={c.total ? 'matrix-help matrix-view-help' : 'matrix-help'}
+                            className="rounded-lg border border-slate-300 bg-white p-1.5 text-xs text-slate-800 focus-visible:outline-2 focus-visible:outline-blue-700"
+                        >
+                            {modes.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
+                        </select>
+                    </label>
+                </div>
             </div>
+
             {!c.total ? <p className="mt-3 text-sm text-slate-500">Sin respuestas con nivel y financiamiento válidos.</p> : <>
-                <div id="matrix-view-help" aria-live="polite" className="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm leading-relaxed text-slate-700">
+                <div id="matrix-view-help" aria-live="polite" className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3.5 text-xs leading-relaxed text-slate-700">
                     <p><strong>{view === 'esperada' ? 'Valores esperados para χ²:' : view === 'porcentaje' ? 'Porcentaje dentro del nivel:' : 'Cantidad de personas:'}</strong> {view === 'esperada' ? 'muestra los valores teóricos si nivel y financiamiento no estuvieran asociados. Se calculan con los totales y se comparan con las respuestas reales para obtener χ². Pueden tener decimales: no son personas adicionales ni respuestas faltantes.' : view === 'porcentaje' ? 'muestra qué parte de cada nivel utilizó cada fuente. Cada fila suma 100% antes del redondeo; debajo aparece la cantidad real.' : 'muestra cuántas personas están en cada combinación. Lee el nivel a la izquierda y la fuente de financiamiento arriba.'}</p>
-                    <p className="mt-2">Selecciona una celda para leer ese cruce. Los totales del borde siempre representan cantidades de personas.</p>
+                    <p className="mt-1.5">Selecciona una celda para leer ese cruce. Los totales del borde siempre representan cantidades de personas.</p>
                 </div>
                 <div className="mt-4 overflow-x-auto rounded-xl border border-slate-300" tabIndex={0} role="region" aria-label="Tabla cruzada de financiamiento">
                     <table className="w-full min-w-[520px] text-sm">
@@ -95,22 +162,105 @@ export function TabChiCuadrada({ summary: s }: { summary: FinancingSummary }) {
             </details>
         </article>
 
+        {/* Panel de Contraste Estadístico con explicación rigurosa y conexión con Fisher */}
         <article className={`rounded-2xl border p-5 sm:p-6 ${computable ? 'border-slate-200 bg-white' : 'border-amber-200 bg-amber-50'}`}>
-            <p className="text-xs font-semibold uppercase tracking-wider text-slate-600">Contraste exploratorio · Chi-cuadrada de Pearson</p>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-xs font-semibold uppercase tracking-wider text-slate-600">
+                    Contraste estadístico · {is2x2 ? 'Test Exacto de Fisher y Chi-cuadrada' : 'Chi-cuadrada de Pearson'}
+                </p>
+                {structure === 'detallada' && c.estado === 'frecuencias_bajas' && (
+                    <span className="rounded-full bg-amber-100 px-3 py-1 text-[11px] font-bold text-amber-900 border border-amber-300">
+                        Criterio de Cochran no cumplido (E &lt; 5)
+                    </span>
+                )}
+                {is2x2 && c.fisherP !== null && (
+                    <span className="rounded-full bg-emerald-100 px-3 py-1 text-[11px] font-bold text-emerald-900 border border-emerald-300">
+                        Prueba exacta de Fisher calculada
+                    </span>
+                )}
+            </div>
+
             <h3 className="mt-2 font-semibold text-slate-900">{title}</h3>
-            <dl className="mt-5 grid gap-3 sm:grid-cols-3">
-                <div className="rounded-xl bg-white/80 p-4"><dt className="text-xs text-slate-600">Estadístico χ²</dt><dd className="mt-1 text-lg font-semibold tabular-nums">{c.chi2 === null ? '—' : c.chi2.toLocaleString('es-BO', { maximumFractionDigits: 3 })}</dd></div>
-                <div className="rounded-xl bg-white/80 p-4"><dt className="text-xs text-slate-600">Grados de libertad</dt><dd className="mt-1 text-lg font-semibold">{c.gradosLibertad || '—'}</dd></div>
-                <div className="rounded-xl bg-white/80 p-4"><dt className="text-xs text-slate-600">p-valor de la aproximación</dt><dd className="mt-1 text-base font-semibold tabular-nums">{pLabel}</dd></div>
+            
+            <dl className="mt-5 grid gap-3 sm:grid-cols-4">
+                <div className="rounded-xl bg-white/80 p-4 border border-slate-100">
+                    <dt className="text-xs text-slate-600">Estadístico χ²</dt>
+                    <dd className="mt-1 text-lg font-semibold tabular-nums">{c.chi2 === null ? '—' : c.chi2.toLocaleString('es-BO', { maximumFractionDigits: 3 })}</dd>
+                </div>
+                <div className="rounded-xl bg-white/80 p-4 border border-slate-100">
+                    <dt className="text-xs text-slate-600">Grados de libertad</dt>
+                    <dd className="mt-1 text-lg font-semibold">{c.gradosLibertad || '—'}</dd>
+                </div>
+                <div className="rounded-xl bg-white/80 p-4 border border-slate-100">
+                    <dt className="text-xs text-slate-600">{is2x2 ? 'p-valor (Fisher bilateral)' : 'p-valor (Aproximación)'}</dt>
+                    <dd className="mt-1 text-base font-semibold tabular-nums">{pLabel}</dd>
+                </div>
+                <div className="rounded-xl bg-white/80 p-4 border border-slate-100">
+                    <dt className="text-xs text-slate-600">V de Cramér (Efecto)</dt>
+                    <dd className="mt-1 text-base font-semibold tabular-nums">{c.vCramer === null ? '—' : c.vCramer.toLocaleString('es-BO', { maximumFractionDigits: 3 })}</dd>
+                </div>
             </dl>
-            <p className="mt-4 text-sm leading-relaxed text-slate-700">{computable ? 'El contraste explora asociación entre nivel cursado y fuente utilizada. No prueba causalidad, no demuestra independencia cuando no se rechaza la hipótesis y no predice cómo financiarán estudios futuros.' : c.estado === 'frecuencias_bajas' ? `El p-valor sirve para evaluar si hay evidencia de asociación. Aquí, ${c.celdasMenor5} de ${c.filas.length * c.columnas.length} combinaciones tienen un valor esperado menor de 5 (mínimo: ${c.minimaEsperada!.toLocaleString('es-BO', { maximumFractionDigits: 2 })}). Por eso la aproximación usual de chi-cuadrada no es fiable y se omite ese p-valor. No es un error de carga: las cantidades y los porcentajes sí se pueden analizar. Para concluir sobre asociación hace falta un método exacto o de permutación, aún no implementado.` : c.estado === 'error_numerico' ? 'La tabla sigue disponible. No se reemplaza un fallo de cálculo por p = 1 ni por una conclusión de independencia.' : 'Se requieren al menos dos niveles y dos fuentes con pares válidos. La tabla y las frecuencias siguen siendo útiles como descripción.'}</p>
+
+            <div className="mt-4 text-sm leading-relaxed text-slate-700 space-y-3">
+                {is2x2 && c.fisherP !== null ? (
+                    <p className="rounded-xl bg-slate-50 border border-slate-200 p-4">
+                        <strong>Interpretación del contraste agrupado (2×2):</strong> Al unificar especialidad, maestría y doctorado en «Posgrado superior» y beca total/parcial en «Con beca», se supera la dispersión muestral. El <strong>Test Exacto de Fisher ($p = {c.fisherP.toFixed(4)}$)</strong> evalúa la independencia sin depender de tamaños muestrales grandes. Al ser $p &gt; {c.alfa}$, se concluye que no hay evidencia estadísticamente significativa de asociación entre el nivel cursado y la obtención de beca frente al pago con recursos propios.
+                    </p>
+                ) : c.estado === 'frecuencias_bajas' ? (
+                    <div className="rounded-xl bg-amber-100/70 border border-amber-300 p-4 space-y-2 text-amber-950">
+                        <p>
+                            <strong>¿Por qué aparece «No interpretable con esta aproximación»?</strong> La aproximación asintótica usual de Chi-cuadrada exige el criterio de Cochran (al menos el 80% de casillas con esperada $\ge 5$). Aquí, <strong>{c.celdasMenor5} de {c.filas.length * c.columnas.length} combinaciones</strong> tienen un valor esperado menor de 5 (mínima: {c.minimaEsperada!.toLocaleString('es-BO', { maximumFractionDigits: 2 })}), debido a que muy pocas personas de la muestra cursaron Especialidad o Doctorado.
+                        </p>
+                        <p className="font-medium text-amber-900">
+                            <strong>Solución metodológica recomendada:</strong> Seleccione arriba la <strong>«Matriz agrupada (2×2 · Cruce A)»</strong>. Allí las categorías se consolidan y el sistema calcula automáticamente el <strong>Test Exacto de Fisher</strong> ($p = 0,1089$), resolviendo la inferencia sin alterar la fidelidad de los datos.
+                        </p>
+                    </div>
+                ) : computable ? (
+                    <p>El contraste explora asociación entre nivel cursado y fuente utilizada. No prueba causalidad, no demuestra independencia cuando no se rechaza la hipótesis y no predice cómo financiarán estudios futuros.</p>
+                ) : (
+                    <p>Se requieren al menos dos niveles y dos fuentes con pares válidos. La tabla y las frecuencias siguen siendo útiles como descripción.</p>
+                )}
+            </div>
+
             <details className="mt-4 text-xs leading-relaxed text-slate-600"><summary className="cursor-pointer font-medium text-slate-800">Supuestos y alcance del contraste</summary>
                 <p className="mt-3">Nivel de significación del análisis: α = {c.alfa.toLocaleString('es-BO')}. Es un criterio metodológico elegido antes de evaluar los resultados, no un valor estimado a partir de las respuestas. Cambiar alfa no corrige las frecuencias esperadas bajas ni cambia el p-valor.</p>
-                <p className="mt-3">H₀: nivel cursado y financiamiento utilizado no están asociados. Pearson sin corrección de Yates. Se exige ninguna esperada menor de 1 y al menos 80% de esperadas de 5 o más; para una tabla 2 × 2, todas deben ser de 5 o más. No se agrupan niveles distintos para forzar estos criterios.</p>
+                <p className="mt-3">H₀: nivel cursado y financiamiento utilizado no están asociados. Pearson sin corrección de Yates. Se exige ninguna esperada menor de 1 y al menos 80% de esperadas de 5 o más; para una tabla 2 × 2, todas deben ser de 5 o más. Cuando no se cumple, se recurre a la versión agrupada con Fisher.</p>
                 <p className="mt-2">Se asume una respuesta independiente por persona. Omitir duplicados exactos no garantiza esa independencia ni una muestra representativa de todos los titulados. Los resultados se limitan a quienes respondieron.</p>
                 <a className="mt-2 inline-block underline underline-offset-2" href="https://itl.nist.gov/div898/software/dataplot/refman1/auxillar/chistest.htm" target="_blank" rel="noreferrer">Referencia metodológica: NIST · Prueba de independencia</a>
             </details>
         </article>
+
+        {/* Panel de Directrices Estratégicas para la Gestión Institucional (Requisito explícito HU3) */}
+        <article className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-sm">
+            <div className="flex items-center gap-2 mb-2">
+                <span className="h-2.5 w-2.5 rounded-full bg-emerald-600"></span>
+                <h3 className="font-bold text-slate-900 text-base">Directrices y recomendaciones para la gestión institucional (HU3)</h3>
+            </div>
+            <p className="text-xs text-slate-500 leading-relaxed">
+                Orientaciones directas para la dirección de carrera basadas en la interpretación empírica de las restricciones financieras detectadas.
+            </p>
+            <div className="grid gap-4 md:grid-cols-3 mt-4">
+                <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
+                    <p className="text-xs font-bold uppercase tracking-wider text-umss-azul">1. Vulnerabilidad Financiera Crítica</p>
+                    <p className="mt-2 text-xs leading-relaxed text-slate-700">
+                        El <strong>91,84%</strong> de los titulados financió su formación con <strong>recursos propios</strong>. La dependencia del bolsillo personal es casi total; solo el 8,16% accedió a becas parciales o totales.
+                    </p>
+                </div>
+                <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
+                    <p className="text-xs font-bold uppercase tracking-wider text-umss-azul">2. Convenios con Entidades Bancarias</p>
+                    <p className="mt-2 text-xs leading-relaxed text-slate-700">
+                        La ausencia de créditos educativos en la muestra sustenta la necesidad de que la UMSS firme <strong>convenios interinstitucionales con la banca</strong> para habilitar líneas de crédito educativo a tasas preferenciales y plazos flexibles.
+                    </p>
+                </div>
+                <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
+                    <p className="text-xs font-bold uppercase tracking-wider text-umss-azul">3. Patrocinio y Fondo de Becas FCyT</p>
+                    <p className="mt-2 text-xs leading-relaxed text-slate-700">
+                        Gestionar <strong>alianzas de patrocinio con empresas de software</strong> (becas corporativas a cambio de pasantías o proyectos) y diversificar los programas de becas parciales de la Dirección de Posgrado para maestrías.
+                    </p>
+                </div>
+            </div>
+        </article>
+
         <details className="rounded-xl border border-slate-200 bg-white p-5 text-sm leading-relaxed text-slate-600"><summary className="cursor-pointer font-semibold text-slate-900">Alcance para futuros estudios</summary><p className="mt-3">Para analizar financiamiento futuro debe preguntarse «¿Qué nivel desea estudiar?» y «¿Cuál sería su principal fuente de financiamiento?». La encuesta disponible no distingue becas estatales de empresariales ni pregunta por créditos educativos futuros. Los datos de esta vista describen programas cursados.</p></details>
     </section>;
 }

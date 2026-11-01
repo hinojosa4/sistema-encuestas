@@ -39,7 +39,11 @@ export async function academicReportToPdf(report: AnalysisReport, metadata: Part
     const newPage = () => { page=document.addPage([W,H]);y=H-82; };
     const ensure = (height: number) => {if(y-height<BOTTOM)newPage();};
     const paragraph = (text: string,size=10.5,color=INK) => {
-        for(const line of wrap(text,CW,size)){ensure(size*1.45);put(page,line,M,y,size,normal,color);y-=size*1.45;}y-=9;
+        const lines = wrap(text,CW,size), lineHeight = size*1.45;
+        // Mantener párrafos que caben en una página; evitar una última línea aislada.
+        const height = lines.length*lineHeight+9;
+        if (height <= H-82-BOTTOM) ensure(height);
+        for(const line of lines){ensure(lineHeight);put(page,line,M,y,size,normal,color);y-=lineHeight;}y-=9;
     };
     const heading = (text: string,major=false) => {
         const size=major?16:12;

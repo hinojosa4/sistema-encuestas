@@ -21,14 +21,14 @@ export const normalizarFinanciamiento = (value: unknown) => financing.get(normal
 const yes = (value: unknown) => normalizarTexto(value) === 'si';
 const sortedFrequency = (values: string[]) => calcularDistribucionFrecuencias(values).sort((a, b) => b.cantidad - a.cantidad);
 const thematicAreas = ['IA', 'Ingeniería de Software', 'Redes de Datos y Seguridad', 'Base de Datos', 'Robótica'];
-const areaLabel = (value: unknown) => {
+export const normalizarAreaPosgrado = (value: unknown) => {
     const original = String(value ?? '').trim().replace(/\s+/g, ' ');
     return thematicAreas.find(label => normalizarTexto(label) === normalizarTexto(original)) ?? original;
 };
 
 export function resumirFormacion(rows: Row[]) {
     const interested = rows.filter(r => yes(r.interes_futuro_posgrado));
-    const areas = sortedFrequency(interested.map(r => areaLabel(r.area_interes_posgrado)).filter(Boolean));
+    const areas = sortedFrequency(interested.map(r => normalizarAreaPosgrado(r.area_interes_posgrado)).filter(Boolean));
     const levelsDone = rows.filter(r => yes(r.ha_realizado_posgrado))
         .map(r => normalizarNivelPosgrado(r.nivel_posgrado_cursado)).filter((v): v is string => v !== null);
     const sinInteres = rows.filter(r => normalizarTexto(r.interes_futuro_posgrado) === 'no').length;
@@ -63,10 +63,19 @@ export function resumirFinanciamiento(rows: Row[]) {
     pares.sort((a, b) => levels.indexOf(a.varX) - levels.indexOf(b.varX) || a.varY.localeCompare(b.varY, 'es'));
     const distribucion = sortedFrequency(fuentes);
     const conBeca = fuentes.filter(f => f === 'Beca total' || f === 'Beca parcial').length;
+    
+    // Versión agrupada (2x2) para contraste y Test Exacto de Fisher (Cruce A de ARCUSUR)
+    const paresAgrupados = pares.map(p => ({
+        varX: p.varX === 'Diplomado' ? 'Diplomado' : 'Posgrado superior',
+        varY: p.varY === 'Recursos propios' ? 'Recursos propios' : 'Con beca',
+    }));
+
     return {
         total: rows.length, fuentesValidas: fuentes.length, distribucion,
         conBeca, porcentajeBeca: fuentes.length ? conBeca / fuentes.length * 100 : null,
-        chi: calcularChiCuadrada(pares), exclusiones,
+        chi: calcularChiCuadrada(pares),
+        chiAgrupada: calcularChiCuadrada(paresAgrupados),
+        exclusiones,
         excluidosCruce: rows.length - pares.length,
     };
 }

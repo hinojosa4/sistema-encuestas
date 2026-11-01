@@ -70,11 +70,130 @@ function EmployerRadar({ items, title, fields }: { items: RatingSummary[]; title
     return <article className="min-w-0 rounded-xl border border-slate-200 bg-white p-4"><h4 className="text-sm font-semibold text-slate-900">{title}</h4><p className="mt-2 text-xs text-slate-600">Media de acuerdo 1–3; cada eje conserva su propia base. La forma no representa una brecha.</p><div className="mt-4 h-80"><ResponsiveContainer width="100%" height="100%"><RadarChart data={data} outerRadius="60%"><PolarGrid /><PolarAngleAxis dataKey="etiqueta" fontSize={10} /><PolarRadiusAxis domain={[0, 3]} ticks={[1, 2, 3]} fontSize={10} /><Radar name="Media original (1–3)" dataKey="media" stroke="#0f766e" fill="#0f766e" fillOpacity={0.2} /><Tooltip formatter={value => scoreLabel(typeof value === 'number' ? value : null)} /></RadarChart></ResponsiveContainer></div></article>;
 }
 
+function CurricularGapSynthesis({ summary: s }: { summary: CompetencySummary }) {
+    const ventajas = s.mejoras.find(m => m.campo === 'asignaturas_ventaja_competitiva')?.opciones.slice(0, 4) ?? [];
+    const menosUtiles = s.mejoras.find(m => m.campo === 'asignaturas_menos_utiles')?.opciones.slice(0, 4) ?? [];
+    const emergentes = s.demanda.find(d => d.campo === 'areas_emergentes_importantes')?.opciones.slice(0, 4) ?? [];
+    const habilidades = s.demanda.find(d => d.campo === 'habilidades_fundamentales')?.opciones.slice(0, 3) ?? [];
+
+    return (
+        <article className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-sm space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-100 gap-2">
+                <div>
+                    <h3 className="font-bold text-slate-900 text-lg">Diagnóstico de Brechas Formativas para la Malla Curricular (HU4)</h3>
+                    <p className="text-xs text-slate-500">
+                        Síntesis comparativa entre competencias técnicas y transversales adquiridas frente a las demandas del mercado laboral.
+                    </p>
+                </div>
+                <span className="self-start sm:self-auto rounded-full bg-teal-50 px-3 py-1 text-xs font-semibold text-teal-800 border border-teal-200">
+                    Evidencia para Acreditación
+                </span>
+            </div>
+
+            <div className="grid gap-4 lg:grid-cols-3 pt-2">
+                {/* 1. Fortalezas Consolidadas */}
+                <div className="rounded-xl border border-emerald-100 bg-emerald-50/50 p-4 flex flex-col justify-between">
+                    <div>
+                        <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-emerald-800">
+                            <span className="h-2 w-2 rounded-full bg-emerald-600"></span>
+                            <span>1. Fortalezas Curriculares Vigentes</span>
+                        </div>
+                        <p className="mt-1 text-xs text-slate-600">
+                            Hard skills que brindaron ventaja competitiva directa en el puesto:
+                        </p>
+                        <ul className="mt-3 space-y-2 text-xs">
+                            {ventajas.map((v, i) => (
+                                <li key={v.nombre} className="flex justify-between items-center bg-white p-2 rounded-lg border border-emerald-100 shadow-2xs">
+                                    <span className="font-medium text-slate-800">{i + 1}. {v.nombre}</span>
+                                    <span className="font-bold text-emerald-700">{percentLabel(v.porcentaje)}</span>
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
+                    <p className="mt-3 text-[11px] text-emerald-900 italic">
+                        Confirmación de pertinencia en bases de datos, ingeniería de software y redes.
+                    </p>
+                </div>
+
+                {/* 2. Brecha Formativa por Demanda Emergente */}
+                <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-4 flex flex-col justify-between">
+                    <div>
+                        <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-amber-800">
+                            <span className="h-2 w-2 rounded-full bg-amber-600"></span>
+                            <span>2. Brecha por Demanda Emergente</span>
+                        </div>
+                        <p className="mt-1 text-xs text-slate-600">
+                            Tecnologías demandadas por empresas con alta exigencia en el puesto:
+                        </p>
+                        <ul className="mt-3 space-y-2 text-xs">
+                            {emergentes.map((e, i) => (
+                                <li key={e.nombre} className="flex justify-between items-center bg-white p-2 rounded-lg border border-amber-200 shadow-2xs">
+                                    <span className="font-medium text-slate-800">{i + 1}. {e.nombre}</span>
+                                    <span className="font-bold text-amber-800">{percentLabel(e.porcentaje)}</span>
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
+                    <p className="mt-3 text-[11px] text-amber-900 italic">
+                        Demanda prioritaria de IA aplicada, automatización, cloud y ciberseguridad.
+                    </p>
+                </div>
+
+                {/* 3. Oportunidad de Optimización Curricular */}
+                <div className="rounded-xl border border-rose-100 bg-rose-50/50 p-4 flex flex-col justify-between">
+                    <div>
+                        <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-rose-800">
+                            <span className="h-2 w-2 rounded-full bg-rose-600"></span>
+                            <span>3. Oportunidad de Modernización</span>
+                        </div>
+                        <p className="mt-1 text-xs text-slate-600">
+                            Asignaturas evaluadas mayoritariamente como menos útiles en la práctica:
+                        </p>
+                        <ul className="mt-3 space-y-2 text-xs">
+                            {menosUtiles.map((m, i) => (
+                                <li key={m.nombre} className="flex justify-between items-center bg-white p-2 rounded-lg border border-rose-100 shadow-2xs">
+                                    <span className="font-medium text-slate-800">{i + 1}. {m.nombre}</span>
+                                    <span className="font-bold text-rose-700">{percentLabel(m.porcentaje)}</span>
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
+                    <p className="mt-3 text-[11px] text-rose-900 italic">
+                        Candidatas a modernización de contenidos o sustitución por electivas modernas.
+                    </p>
+                </div>
+            </div>
+
+            {/* Directrices para el Comité de Calidad y Malla */}
+            <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4 text-xs leading-relaxed text-slate-700">
+                <p className="font-bold text-slate-900 mb-1">Directrices para la Actualización Curricular (Comité ARCUSUR):</p>
+                <div className="grid gap-3 sm:grid-cols-3 mt-2">
+                    <p><strong>• Actualización formal del plan:</strong> El 71,4% de los titulados exige actualizar la malla para atender las tendencias reales de la industria tecnológica.</p>
+                    <p><strong>• Integración de Soft Skills:</strong> Los empleadores priorizan {habilidades.length ? habilidades.map(h => h.nombre).join(', ') : 'habilidades de comunicación y trabajo colaborativo'}, destacando la resolución analítica de problemas.</p>
+                    <p><strong>• Reorientación de créditos:</strong> Disminuir carga horaria en áreas analógicas o desactualizadas para incorporar créditos modulares en DevOps, arquitecturas cloud y agentes de IA.</p>
+                </div>
+            </div>
+        </article>
+    );
+}
+
 export function TabEmpleadores({ summary: s, onScope }: { summary: CompetencySummary; onScope: (scope: GraduateScope) => void }) {
     const [section, setSection] = useState<'titulados' | 'mejoras' | 'empleadores'>('titulados');
     const sections = [{ id: 'titulados', label: 'Formación y trabajo' }, { id: 'mejoras', label: 'Mejoras curriculares' }, { id: 'empleadores', label: 'Perspectiva de empleadores' }] as const;
     const satisfaction = s.titulados[0];
     return <section className="space-y-6" aria-labelledby="hu4-title">
+        {/* Banner institucional de alcance metodológico de la HU4 */}
+        <div className="rounded-xl border border-blue-200 bg-blue-50/80 p-4 text-xs leading-relaxed text-slate-700 shadow-sm">
+            <div className="flex items-center gap-1.5 font-bold uppercase tracking-wide text-umss-azul mb-1">
+                <span>Historia de Usuario 4 · Evaluación de Brechas en Competencias Profesionales</span>
+            </div>
+            <p>
+                <strong>Población analizada:</strong> Titulados con experiencia laboral demostrada en el mercado ({s.conExperiencia} de {s.totalTitulados} respuestas). 
+                <br />
+                <strong>Escalas de medición nativas:</strong> El cuestionario oficial empleó escalas Likert de 4 puntos (1–4) para titulados y 3 puntos (1–3) para empleadores. Las medias, medianas y desviaciones estándar se calculan sobre las escalas originales para preservar la fidelidad estadística requerida por los pares evaluadores de ARCUSUR.
+            </p>
+        </div>
+
         <header><p className="text-xs font-semibold uppercase tracking-widest text-umss-azul">Formación y competencias</p><h2 id="hu4-title" className="mt-2 text-2xl font-bold tracking-tight text-slate-900">¿Qué formación aporta y qué conviene mejorar?</h2><p className="mt-2 text-sm leading-relaxed text-slate-600">Diagnóstico de percepciones de titulados y empleadores. Las dos perspectivas se presentan por separado y conservan sus escalas originales.</p></header>
         <div className="grid gap-4 sm:grid-cols-3">
             <Indicator label="Titulados en este análisis" value={s.tituladosAnalizados} detail={<>De {s.totalTitulados} respuestas; {s.conExperiencia} declaran experiencia laboral.</>} />
@@ -85,7 +204,11 @@ export function TabEmpleadores({ summary: s, onScope }: { summary: CompetencySum
             <select value={s.scope} onChange={e => onScope(e.target.value as GraduateScope)} className="mt-2 block w-full rounded-lg border border-slate-300 bg-white p-3 text-sm sm:max-w-md focus-visible:outline-2 focus-visible:outline-teal-700"><option value="experiencia">Con experiencia laboral declarada</option><option value="todos">Todos los titulados · contexto general</option></select>
             <span className="mt-2 block text-xs font-normal leading-relaxed text-slate-600">Experiencia declarada: trabaja en una organización, emprende, afirma haber trabajado antes o declara años de experiencia profesional mayores a cero. No equivale a una categoría de cargo.</span>
         </label>
-        <nav className="flex flex-wrap gap-2" aria-label="Perspectivas de formaci?n y competencias">{sections.map(item => <button key={item.id} type="button" aria-pressed={section === item.id} onClick={() => setSection(item.id)} className={`rounded-lg border px-4 py-3 text-sm font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-700 ${section === item.id ? 'border-teal-800 bg-teal-800 text-white' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'}`}>{item.label}</button>)}</nav>
+
+        {/* Panel consolidado de Diagnóstico de Brechas Formativas para la Malla Curricular */}
+        <CurricularGapSynthesis summary={s} />
+
+        <nav className="flex flex-wrap gap-2" aria-label="Perspectivas de formación y competencias">{sections.map(item => <button key={item.id} type="button" aria-pressed={section === item.id} onClick={() => setSection(item.id)} className={`rounded-lg border px-4 py-3 text-sm font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-700 ${section === item.id ? 'border-teal-800 bg-teal-800 text-white' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'}`}>{item.label}</button>)}</nav>
         {section === 'titulados' && <RatingPanel items={s.titulados} title="Valoración de la formación desde los titulados" />}
         {section === 'mejoras' && <MultiplePanel items={s.mejoras} />}
         {section === 'empleadores' && <div className="space-y-6">

@@ -1,12 +1,12 @@
 // app/dashboard/page.tsx
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useRef } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { resumirFormacion, resumirFinanciamiento, filasCruceFinanciamiento } from '@/lib/postgraduate';
 import * as XLSX from 'xlsx';
 import {
-    BarChart3, Download, RefreshCw, GraduationCap, Building2
+    BarChart3, Download, RefreshCw, GraduationCap, Building2, ChevronDown, FileSpreadsheet, FileText, Layers
 } from 'lucide-react';
 
 import { TabTitulados } from '@/components/dashboard/TabTitulados';
@@ -21,6 +21,11 @@ import { resumirEmpleabilidad } from '@/lib/employability';
 import { resumirCompetencias, exportCompetencies, type GraduateScope } from '@/lib/competencies';
 import { normalizeStored, safeSpreadsheetValue, type Row } from '@/lib/importPipeline';
 import { readAllRows, databaseMessage } from '@/lib/surveyRepository';
+import { buildCrossAnalyses } from '@/lib/crossAnalysis';
+import { createCleanDatasetWorkbook, cleanRowsToCsv, triggerDownload } from '@/lib/cleanDatasetExport';
+import { CrossAnalyses } from './CrossAnalyses';
+import { EmergingAreasPanel } from './EmergingAreasPanel';
+import { VariableBases } from './VariableBases';
 
 async function loadSurveys() {
     const [t, e] = await Promise.all([readAllRows(supabase, 'encuesta_titulados'), readAllRows(supabase, 'encuesta_empleadores')]);
@@ -35,6 +40,8 @@ export default function DashboardScreen() {
     const [competencyScope, setCompetencyScope] = useState<GraduateScope>('experiencia');
     const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState<AnalysisSection>('titulados');
+    const [exportMenuOpen, setExportMenuOpen] = useState(false);
+    const exportMenuRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
         let active = true;
@@ -42,6 +49,16 @@ export default function DashboardScreen() {
             .catch(error => { if (active) setErrorMessage(databaseMessage(error)); })
             .finally(() => { if (active) setLoading(false); });
         return () => { active = false; };
+    }, []);
+
+    useEffect(() => {
+        function handleClickOutside(event: MouseEvent) {
+            if (exportMenuRef.current && !exportMenuRef.current.contains(event.target as Node)) {
+                setExportMenuOpen(false);
+            }
+        }
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
     const hu1 = resumirEmpleabilidad(titulados, limiteExperiencia);
@@ -53,7 +70,19 @@ export default function DashboardScreen() {
     const sectionHasData = titulados.length > 0 ||
         ((activeTab === 'empleadores' || activeTab === 'reportes') && empleadores.length > 0);
 
-    // HU 5: Exportación a Excel
+    const handleQuickDownloadCleanExcel = async () => {
+        setExportMenuOpen(false);
+        const wb = createCleanDatasetWorkbook(titulados, empleadores);
+        XLSX.writeFile(wb, `Dataset_Limpio_UMSS_ARCUSUR_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    };
+
+    const handleQuickDownloadTituladosCsv = () => {
+        setExportMenuOpen(false);
+        const csv = cleanRowsToCsv(titulados);
+        triggerDownload(csv, 'text/csv;charset=utf-8', `titulados_datos_limpios_${new Date().toISOString().slice(0, 10)}.csv`);
+    };
+
+    // HU 5: Exportación a Excel de vista legacy
     const exportarAExcel = () => {
         const wb = XLSX.utils.book_new();
         const exportRows = (rows: Row[]) => rows.map(r => Object.fromEntries(Object.entries(r)
@@ -114,7 +143,7 @@ export default function DashboardScreen() {
 
     return (
         <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-6 sm:py-8">
-            {/* Encabezado sin redundancias */}
+            {/* Encabezado con menú de exportación directa */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-5 border-b border-slate-200 mb-6 gap-4">
                 <div>
                     <h2 className="text-xl sm:text-2xl font-extrabold text-umss-azul flex items-center gap-2">
@@ -126,16 +155,60 @@ export default function DashboardScreen() {
                     </p>
                 </div>
 
-                <div className="flex items-center gap-2 w-full sm:w-auto">
-
-
+                <div className="flex items-center gap-2 w-full sm:w-auto relative" ref={exportMenuRef}>
                     <button
-                        onClick={() => setActiveTab('reportes')}
-                        className="inline-flex items-center justify-center gap-2 bg-emerald-700 hover:bg-emerald-800 text-white font-medium px-4 py-2 rounded-lg text-xs sm:text-sm shadow transition-colors flex-1 sm:flex-initial"
+                        type="button"
+                        onClick={() => setExportMenuOpen(prev => !prev)}
+                        aria-expanded={exportMenuOpen}
+                        aria-haspopup="true"
+                        className="inline-flex items-center justify-center gap-2 bg-emerald-700 hover:bg-emerald-800 text-white font-medium px-4 py-2.5 rounded-lg text-xs sm:text-sm shadow transition-colors flex-1 sm:flex-initial"
                     >
                         <Download className="h-4 w-4" />
-                        <span>Reportes y exportación</span>
+                        <span>Exportar datos / reportes</span>
+                        <ChevronDown className={`h-3.5 w-3.5 transition-transform duration-200 ${exportMenuOpen ? 'rotate-180' : ''}`} />
                     </button>
+
+                    {exportMenuOpen && (
+                        <div className="absolute right-0 top-full mt-2 w-72 rounded-xl bg-white shadow-xl ring-1 ring-black ring-opacity-5 border border-slate-200 py-2 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
+                            <div className="px-3 py-1.5 border-b border-slate-100">
+                                <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Descarga Rápida (HU5)</p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => void handleQuickDownloadCleanExcel()}
+                                className="w-full text-left px-3 py-2.5 text-xs sm:text-sm text-slate-700 hover:bg-emerald-50 hover:text-emerald-900 flex items-center gap-2.5 font-medium transition-colors"
+                            >
+                                <FileSpreadsheet className="h-4 w-4 text-emerald-700 shrink-0" />
+                                <div>
+                                    <div className="font-semibold text-slate-900">Dataset Limpio (.xlsx)</div>
+                                    <div className="text-[11px] text-slate-500">148 titulados y 80 empleadores depurados</div>
+                                </div>
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleQuickDownloadTituladosCsv}
+                                className="w-full text-left px-3 py-2.5 text-xs sm:text-sm text-slate-700 hover:bg-slate-50 hover:text-slate-900 flex items-center gap-2.5 font-medium transition-colors"
+                            >
+                                <FileText className="h-4 w-4 text-blue-600 shrink-0" />
+                                <div>
+                                    <div className="font-semibold text-slate-900">Titulados Depurados (.csv)</div>
+                                    <div className="text-[11px] text-slate-500">Formato plano UTF-8 para R/Python</div>
+                                </div>
+                            </button>
+                            <div className="border-t border-slate-100 my-1"></div>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setExportMenuOpen(false);
+                                    setActiveTab('reportes');
+                                }}
+                                className="w-full text-left px-3 py-2 text-xs text-umss-azul hover:bg-blue-50 flex items-center gap-2 font-semibold transition-colors"
+                            >
+                                <Layers className="h-3.5 w-3.5 shrink-0" />
+                                <span>Ver centro completo de reportes y PDF</span>
+                            </button>
+                        </div>
+                    )}
                 </div>
             </div>
 
@@ -160,18 +233,42 @@ export default function DashboardScreen() {
             {/* Vistas según pestaña activa */}
             {!errorMessage && !sectionHasData && <EmptyAnalysis section={activeTab} />}
             {!errorMessage && sectionHasData && <>
-            {activeTab === 'titulados' && (
-                <HU1Overview summary={hu1} limite={limiteExperiencia} onLimite={setLimiteExperiencia} />
-            )}
-            {activeTab === 'formacion' && (
-                <TabTitulados summary={formacion} />
-            )}
-            {activeTab === 'empleadores' && (
-                <TabEmpleadores summary={competencias} onScope={setCompetencyScope} />
-            )}
-            {activeTab === 'estadistica' && <TabChiCuadrada summary={financiamiento} />}
-            {activeTab === 'reportes' && <TabReports scope={competencyScope} corte={limiteExperiencia} onScope={setCompetencyScope} onCorte={setLimiteExperiencia} onRawExport={exportarAExcel} />}
-            <div className="mt-6"><DataCoverage tieneEgreso={hu1.cohortes.length > 0} /></div>
+                {activeTab === 'titulados' && (
+                    <HU1Overview summary={hu1} limite={limiteExperiencia} onLimite={setLimiteExperiencia} />
+                )}
+                {activeTab === 'formacion' && (
+                    <TabTitulados summary={formacion} />
+                )}
+                {activeTab === 'empleadores' && (
+                    <><TabEmpleadores summary={competencias} onScope={setCompetencyScope} /><div className="mt-6"><EmergingAreasPanel rows={empleadores} onChange={setEmpleadores} /></div></>
+                )}
+                {activeTab === 'estadistica' && (
+                    <div className="space-y-8">
+                        <TabChiCuadrada summary={financiamiento} />
+                        <div className="pt-6 border-t border-slate-200">
+                            <header className="mb-4">
+                                <p className="text-xs font-semibold uppercase tracking-widest text-teal-700">Contraste Multivariado</p>
+                                <h3 className="mt-1 text-xl font-bold tracking-tight text-slate-900">Cruces de hipótesis complementarios (Informe ARCUSUR)</h3>
+                                <p className="mt-1 text-xs text-slate-500">
+                                    Contrastes bivariados entre dimensiones de empleabilidad, formación y sector productivo (Cruces A, B, C y D del documento de autoevaluación).
+                                </p>
+                            </header>
+                            <CrossAnalyses analyses={buildCrossAnalyses(titulados, empleadores)} />
+                        </div>
+                    </div>
+                )}
+                {activeTab === 'reportes' && (
+                    <TabReports
+                        scope={competencyScope}
+                        corte={limiteExperiencia}
+                        onScope={setCompetencyScope}
+                        onCorte={setLimiteExperiencia}
+                        titulados={titulados}
+                        empleadores={empleadores}
+                        onRawExport={exportarAExcel}
+                    />
+                )}
+                <div className="mt-6 space-y-4"><VariableBases graduates={titulados} employers={empleadores} /><DataCoverage tieneEgreso={hu1.cohortes.length > 0} /></div>
             </>}
 
         </div>
