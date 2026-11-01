@@ -2,6 +2,7 @@ import { codigoOrdinal, normalizarTexto } from './dataMappers';
 import { cleanString, employerScales, normalizarSituacion, splitSelections, type Row } from './importPipeline';
 import { calcularEstadisticasUnivariadas } from './statistics';
 import { fieldLabel } from './surveyFields';
+import { summarizeEmerging, emergingRules } from './emergingAreas';
 
 export type GraduateScope = 'experiencia' | 'todos';
 const object = (value: unknown): Row => value !== null && typeof value === 'object' && !Array.isArray(value) ? value as Row : {};
@@ -108,6 +109,12 @@ export const themeRules = [
 ];
 
 export function summarizeThemes(rows: Row[], campo: string): MultipleSummary {
+    if (campo === 'areas_emergentes_importantes') {
+        const s = summarizeEmerging(rows), respondieron = s.total - s.sinRespuesta;
+        return { campo, titulo: fieldLabel(campo), fuente: 'Empleadores', base: s.total, respondieron,
+            sinRespuesta: s.sinRespuesta, noAplica: 0, sinClasificar: s.sinClasificar,
+            opciones: s.categorias.filter(c => c.cantidad > 0).map(c => ({ nombre: c.nombre, cantidad: c.cantidad, porcentaje: respondieron ? c.cantidad / respondieron * 100 : 0 })) };
+    }
     let respondieron = 0, sinClasificar = 0;
     const counts = themeRules.map(() => 0);
     for (const row of rows) {
@@ -172,6 +179,7 @@ export function exportCompetencies(s: CompetencySummary) {
             { indicador: 'Alcance', valor: 'No hay evaluación individual de suficiencia por hard/soft skill ni mediciones pareadas requerido/recibido; no se calcula una brecha numérica.' },
             ...s.demanda.map(r => ({ indicador: `Base temática: ${r.titulo}`, valor: `${r.respondieron} respondieron; ${r.sinRespuesta} sin respuesta; ${r.sinClasificar} sin coincidencia en el catálogo.` })),
             ...themeRules.map(r => ({ indicador: `Regla temática: ${r.nombre}`, valor: r.pattern.source })),
+            ...emergingRules.map(r => ({ indicador: `Regla áreas emergentes: ${r.nombre}`, valor: r.patron.source })),
         ],
     };
 }

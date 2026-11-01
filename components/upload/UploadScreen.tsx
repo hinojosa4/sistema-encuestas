@@ -27,7 +27,7 @@ export default function UploadScreen() {
     const result = useMemo(() => inspectRows(rows, target), [rows, target]);
     const hasWarnings = result.issues.length > 0 || result.unknownHeaders.length > 0;
     const canSave = result.rows.length > 0 && result.errors.length === 0;
-    const reset = () => { generation.current++; setRows([]); setWorkbook(null); setSource({ name: '', hash: '' }); setSheetName(''); setMessage(null); };
+    const reset = (clearMessage = true) => { generation.current++; setRows([]); setWorkbook(null); setSource({ name: '', hash: '' }); setSheetName(''); if (clearMessage) setMessage(null); };
 
     const openFile = async (file: File) => {
         reset();
@@ -68,7 +68,7 @@ export default function UploadScreen() {
             const { inserted: count } = await savePreparedRows(supabase, target, payload);
             setMessage({ error: false, text: count == null ? 'La carga se completó y los registros anteriores se conservaron.' :
                 `${count} respuestas nuevas guardadas; ${payload.length - count} ya existentes omitidas. Los registros anteriores se conservaron.` });
-            setRows([]);
+            reset(false);
         } catch (error) { setMessage({ error: true, text: databaseMessage(error) }); }
         finally { setLoading(false); }
     };
@@ -96,6 +96,7 @@ export default function UploadScreen() {
         {source.name && <>
             <p className="text-sm text-slate-600">Preparación automática: se conservan los originales y las respuestas iguales de distintos envíos. Los valores ambiguos quedan fuera de los indicadores.</p>
             <p className="text-sm bg-slate-50 rounded-lg p-3">{rows.length} filas leídas · {result.rows.length} respuestas preparadas{result.emptyRows > 0 && ` · ${result.emptyRows} filas vacías omitidas`}{result.duplicates > 0 && ` · ${result.duplicates} repeticiones del mismo identificador omitidas`}</p>
+            <p className="text-sm text-slate-600">{result.exactDuplicates} coincidencias exactas de contenido · {result.repeatedOrganizations} nombres de organización repetidos. Las organizaciones repetidas no se eliminan; cada envío puede ser válido.</p>
             {rows.length > 0 && <p className="text-sm text-slate-600">Preguntas reconocidas: {result.recognizedFields} de {result.expectedFields}. Las columnas auxiliares de puntuación y comentarios no se cuentan como preguntas.</p>}
             {result.errors.map(e => <p role="alert" key={e} className="text-red-700 text-sm">{e}</p>)}
             {hasWarnings && <details className="rounded-lg border border-slate-200 p-3 text-sm text-slate-600"><summary className="cursor-pointer font-medium text-slate-700">Detalles de preparación · opcional</summary><p className="mt-3 text-xs">Puedes guardar sin revisar este detalle. Los originales se conservan; no se inventan valores faltantes.</p>

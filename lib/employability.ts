@@ -25,6 +25,31 @@ export function resumirEmpleabilidad(rows: Row[], limiteExperiencia = 3, anioRef
         const working = valid.filter(v=>v!=='Desempleado / En Búsqueda').length;
         return { anio: Number(cohort.nombre), respuestas: group.length, ocupados: working, base: valid.length, excluidos: group.length-valid.length, porcentaje: pct(working,valid.length) };
     });
+
+    // Perfil demográfico y remuneración salarial (Tablas 4, 5 y 22 del informe)
+    const rawEdades = rows.map(r => String(r.edad ?? '').trim()).filter(Boolean);
+    const edad = calcularDistribucionFrecuencias(rawEdades).sort((a, b) => (parseFloat(a.nombre) || 0) - (parseFloat(b.nombre) || 0));
+    
+    const rawGeneros = rows.map(r => String(r.genero ?? '').trim()).filter(Boolean);
+    const genero = calcularDistribucionFrecuencias(rawGeneros).sort((a, b) => b.cantidad - a.cantidad);
+
+    const remOrder = [
+        'Menor a Bs. 2500',
+        'Entre Bs. 2.500 - Bs. 3.500',
+        'Entre Bs. 3.501 - Bs. 5.000',
+        'Entre Bs. 5.001 - Bs. 7.000',
+        'Entre Bs. 7.001 - Bs. 10.000',
+        'Más de Bs. 10.000',
+    ];
+    const employedRows = rows.filter(r => normalizarSituacion(r.situacion_laboral_actual) === 'Empleado en Organización');
+    const rawRem = employedRows.map(r => String(r.remuneracion_mensual ?? '').trim()).filter(Boolean);
+    const remuneracion = calcularDistribucionFrecuencias(rawRem).sort((a, b) => {
+        const idxA = remOrder.indexOf(a.nombre);
+        const idxB = remOrder.indexOf(b.nombre);
+        if (idxA >= 0 && idxB >= 0) return idxA - idxB;
+        return b.cantidad - a.cantidad;
+    });
+
     return {
         experiencia: calcularEstadisticasUnivariadas(years), desempleo: calcularEstadisticasUnivariadas(unemployment),
         experienciaExcluidos: rows.length - years.length, desempleoExcluidos: rows.length - unemployment.length,
@@ -37,6 +62,9 @@ export function resumirEmpleabilidad(rows: Row[], limiteExperiencia = 3, anioRef
         cohortes: cohorts,
         egreso: { anioReferencia, estadisticas: calcularEstadisticasUnivariadas(cohortRows.map(r=>anioReferencia-Number(r.anio_egreso))), excluidos: rows.length-cohortRows.length },
         ocupacionPorCohorte,
+        edad,
+        genero,
+        remuneracion,
     };
 }
 export type EmployabilitySummary = ReturnType<typeof resumirEmpleabilidad>;

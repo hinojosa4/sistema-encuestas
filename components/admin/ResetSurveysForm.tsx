@@ -1,10 +1,14 @@
 'use client';
-import { useActionState, useState } from 'react';
+import { useActionState, useEffect, useReducer } from 'react';
 import { resetSurveyData } from '@/app/administracion/actions';
 
 export function ResetSurveysForm() {
     const [state, action, pending] = useActionState(resetSurveyData, { error: '', success: '' });
-    const [confirmation, setConfirmation] = useState('');
+    const [confirmation, setConfirmation] = useReducer((_: string, next: string) => next, '');
+    useEffect(() => {
+        if (state.success) setConfirmation('');
+    }, [state.success]);
+
     return <details className="rounded-2xl border border-red-200 bg-white p-5">
         <summary className="font-semibold text-red-800">Eliminar todas las respuestas</summary>
         <p className="mt-3 text-sm leading-relaxed text-slate-700">Borra las respuestas de titulados y empleadores. <strong>No se puede deshacer.</strong> Guarda una copia antes de continuar.</p>

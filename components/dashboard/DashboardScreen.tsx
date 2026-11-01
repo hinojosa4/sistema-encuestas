@@ -6,7 +6,7 @@ import { supabase } from '@/lib/supabaseClient';
 import { resumirFormacion, resumirFinanciamiento, filasCruceFinanciamiento } from '@/lib/postgraduate';
 import * as XLSX from 'xlsx';
 import {
-    BarChart3, Download, RefreshCw, GraduationCap, Building2
+    BarChart3, RefreshCw, GraduationCap, Building2
 } from 'lucide-react';
 
 import { TabTitulados } from '@/components/dashboard/TabTitulados';
@@ -21,6 +21,11 @@ import { resumirEmpleabilidad } from '@/lib/employability';
 import { resumirCompetencias, exportCompetencies, type GraduateScope } from '@/lib/competencies';
 import { normalizeStored, safeSpreadsheetValue, type Row } from '@/lib/importPipeline';
 import { readAllRows, databaseMessage } from '@/lib/surveyRepository';
+import { buildCrossAnalyses } from '@/lib/crossAnalysis';
+import { CrossAnalyses } from './CrossAnalyses';
+import { EmergingAreasPanel } from './EmergingAreasPanel';
+import { VariableBases } from './VariableBases';
+import { QuickExportMenu } from './QuickExportMenu';
 
 async function loadSurveys() {
     const [t, e] = await Promise.all([readAllRows(supabase, 'encuesta_titulados'), readAllRows(supabase, 'encuesta_empleadores')]);
@@ -31,8 +36,8 @@ export default function DashboardScreen() {
     const [titulados, setTitulados] = useState<Row[]>([]);
     const [empleadores, setEmpleadores] = useState<Row[]>([]);
     const [errorMessage, setErrorMessage] = useState('');
-    const [limiteExperiencia, setLimiteExperiencia] = useState(3);
-    const [competencyScope, setCompetencyScope] = useState<GraduateScope>('experiencia');
+    const [limiteExperiencia, setLimiteExperiencia] = useState(5);
+    const [competencyScope, setCompetencyScope] = useState<GraduateScope>('todos');
     const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState<AnalysisSection>('titulados');
 
@@ -53,7 +58,7 @@ export default function DashboardScreen() {
     const sectionHasData = titulados.length > 0 ||
         ((activeTab === 'empleadores' || activeTab === 'reportes') && empleadores.length > 0);
 
-    // HU 5: Exportación a Excel
+    // HU 5: Exportación a Excel de vista legacy
     const exportarAExcel = () => {
         const wb = XLSX.utils.book_new();
         const exportRows = (rows: Row[]) => rows.map(r => Object.fromEntries(Object.entries(r)
@@ -114,7 +119,7 @@ export default function DashboardScreen() {
 
     return (
         <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-6 sm:py-8">
-            {/* Encabezado sin redundancias */}
+            {/* Encabezado con menú de exportación directa */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-5 border-b border-slate-200 mb-6 gap-4">
                 <div>
                     <h2 className="text-xl sm:text-2xl font-extrabold text-umss-azul flex items-center gap-2">
@@ -126,17 +131,12 @@ export default function DashboardScreen() {
                     </p>
                 </div>
 
-                <div className="flex items-center gap-2 w-full sm:w-auto">
+                <QuickExportMenu
+                    titulados={titulados}
+                    empleadores={empleadores}
+                    onOpenReports={() => setActiveTab('reportes')}
+                />
 
-
-                    <button
-                        onClick={() => setActiveTab('reportes')}
-                        className="inline-flex items-center justify-center gap-2 bg-emerald-700 hover:bg-emerald-800 text-white font-medium px-4 py-2 rounded-lg text-xs sm:text-sm shadow transition-colors flex-1 sm:flex-initial"
-                    >
-                        <Download className="h-4 w-4" />
-                        <span>Reportes y exportación</span>
-                    </button>
-                </div>
             </div>
 
             {errorMessage && <p role="alert" className="p-4 bg-red-50 text-red-800 rounded-lg mb-4">{errorMessage}</p>}
@@ -160,18 +160,47 @@ export default function DashboardScreen() {
             {/* Vistas según pestaña activa */}
             {!errorMessage && !sectionHasData && <EmptyAnalysis section={activeTab} />}
             {!errorMessage && sectionHasData && <>
-            {activeTab === 'titulados' && (
-                <HU1Overview summary={hu1} limite={limiteExperiencia} onLimite={setLimiteExperiencia} />
-            )}
-            {activeTab === 'formacion' && (
-                <TabTitulados summary={formacion} />
-            )}
-            {activeTab === 'empleadores' && (
-                <TabEmpleadores summary={competencias} onScope={setCompetencyScope} />
-            )}
-            {activeTab === 'estadistica' && <TabChiCuadrada summary={financiamiento} />}
-            {activeTab === 'reportes' && <TabReports scope={competencyScope} corte={limiteExperiencia} onScope={setCompetencyScope} onCorte={setLimiteExperiencia} onRawExport={exportarAExcel} />}
-            <div className="mt-6"><DataCoverage tieneEgreso={hu1.cohortes.length > 0} /></div>
+                {activeTab === 'titulados' && (
+                    <HU1Overview summary={hu1} limite={limiteExperiencia} onLimite={setLimiteExperiencia} />
+                )}
+                {activeTab === 'formacion' && (
+                    <TabTitulados summary={formacion} />
+                )}
+                {activeTab === 'empleadores' && (
+                    <><TabEmpleadores summary={competencias} onScope={setCompetencyScope} empleadores={empleadores} /><div className="mt-6"><EmergingAreasPanel rows={empleadores} onChange={setEmpleadores} /></div></>
+                )}
+                {activeTab === 'estadistica' && (
+                    <div className="space-y-8">
+                        <TabChiCuadrada summary={financiamiento} />
+                        <section className="space-y-4 border-t border-slate-200 pt-8" aria-labelledby="estadistica-centralizada-title">
+                            <header className="rounded-2xl border border-umss-azul/15 bg-blue-50/50 p-5 sm:p-6">
+                                <div className="flex items-start gap-3">
+                                    <span className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full bg-umss-azul" aria-hidden="true" />
+                                    <div>
+                                        <p className="text-xs font-semibold uppercase tracking-widest text-teal-700">Análisis estadístico centralizado</p>
+                                        <h3 id="estadistica-centralizada-title" className="mt-1 text-xl font-bold tracking-tight text-slate-900">Cruces del informe académico</h3>
+                                        <p className="mt-2 text-sm leading-relaxed text-slate-600">
+                                            Selecciona un cruce para consultar su tabla, frecuencias esperadas, estadístico y prueba correspondiente. El sistema usa Pearson o Fisher según los supuestos de cada matriz.
+                                        </p>
+                                    </div>
+                                </div>
+                            </header>
+                            <CrossAnalyses analyses={buildCrossAnalyses(titulados, empleadores)} />
+                        </section>
+                    </div>
+                )}
+                {activeTab === 'reportes' && (
+                    <TabReports
+                        scope={competencyScope}
+                        corte={limiteExperiencia}
+                        onScope={setCompetencyScope}
+                        onCorte={setLimiteExperiencia}
+                        titulados={titulados}
+                        empleadores={empleadores}
+                        onRawExport={exportarAExcel}
+                    />
+                )}
+                <div className="mt-6 space-y-4"><VariableBases graduates={titulados} employers={empleadores} /><DataCoverage tieneEgreso={hu1.cohortes.length > 0} /></div>
             </>}
 
         </div>

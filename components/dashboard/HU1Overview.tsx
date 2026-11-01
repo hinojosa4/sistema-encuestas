@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 import type { EmployabilitySummary } from '@/lib/employability';
 import { employmentIntervals } from '@/lib/importPipeline';
 import { Distribution, Indicator, numberLabel, percentLabel } from './AnalyticsUI';
@@ -7,30 +7,81 @@ export function HU1Overview({ summary: s, limite, onLimite }: {
     summary: EmployabilitySummary; limite: number; onLimite: (value: number) => void;
 }) {
     const plazos = [...s.plazos].sort((a, b) => employmentIntervals.indexOf(a.nombre) - employmentIntervals.indexOf(b.nombre));
+    const edadTotal = s.edad.reduce((n, r) => n + r.cantidad, 0);
+    const generoTotal = s.genero.reduce((n, r) => n + r.cantidad, 0);
+    const remTotal = s.remuneracion.reduce((n, r) => n + r.cantidad, 0);
+
     return <section className="space-y-6" aria-labelledby="hu1-title">
-        <header><p className="text-xs font-semibold uppercase tracking-widest text-umss-azul">Perfil profesional</p><h2 id="hu1-title" className="mt-2 text-2xl font-bold tracking-tight text-slate-900">Experiencia y empleabilidad</h2><p className="mt-2 text-sm text-slate-500">Cuánta experiencia declara la muestra y cómo participa en el mercado laboral.</p></header>
+        <header>
+            <p className="text-xs font-semibold uppercase tracking-widest text-umss-azul">Perfil profesional</p>
+            <h2 id="hu1-title" className="mt-2 text-2xl font-bold tracking-tight text-slate-900">Experiencia y empleabilidad</h2>
+            <p className="mt-2 text-sm text-slate-500">Cuánta experiencia declara la muestra y cómo participa en el mercado laboral.</p>
+        </header>
+
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <Indicator label="Media de experiencia profesional" value={s.experiencia.total ? numberLabel(s.experiencia.media) : '—'} unit="años" detail={<>{s.experiencia.total} respuestas válidas · {s.experienciaExcluidos} excluidas</>} />
             <Indicator label="Mediana de experiencia" value={s.experiencia.total ? numberLabel(s.experiencia.mediana) : '—'} unit="años" detail={<>Desviación estándar muestral: {s.experiencia.total > 1 ? `${numberLabel(s.experiencia.desviacionEstandar)} años` : 'requiere al menos 2 respuestas'}</>} />
             <Indicator label="Ocupación actual" value={percentLabel(s.ocupacion.porcentaje)} detail={<>{s.ocupacion.cantidad} de {s.ocupacion.validos} trabajan en organización o emprendimiento · {s.ocupacion.excluidos} excluidas</>} />
             <Indicator label="Primer empleo temprano" value={percentLabel(s.insercion.porcentaje)} detail={<>{s.insercion.cantidad} de {s.insercion.validos}: antes de titularse o hasta 4 meses · {s.insercion.excluidos} sin plazo utilizable</>} />
         </div>
+
         <div className="grid gap-5 lg:grid-cols-2">
             <Distribution title="Situación laboral actual" description="Estados laborales reconocidos, de mayor a menor frecuencia." data={[...s.situaciones].sort((a, b) => b.cantidad - a.cantidad)} />
             <Distribution title="Tiempo hasta el primer empleo" description="Plazos en orden temporal hasta el primer empleo relacionado con la carrera." data={plazos} tone="teal" />
             <Distribution title="Experiencia profesional" description="Grupos fijos para comparar la composición de la muestra." data={s.experienciaGrupos} />
             <Distribution title="Sector de desempeño" description="Solo quienes trabajan en una organización y declaran un sector válido." data={[...s.sectores].sort((a, b) => b.cantidad - a.cantidad)} tone="teal" />
         </div>
+
         <div className="grid gap-5 lg:grid-cols-3">
             <article className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 lg:col-span-2">
-                <h3 className="font-semibold text-slate-900">Explorar la experiencia de la muestra</h3><p className="mt-1 text-xs text-slate-500">Ajusta el corte para comparar dos grupos. No determina cargos ni jerarquías.</p>
+                <h3 className="font-semibold text-slate-900">Explorar la experiencia de la muestra</h3>
+                <p className="mt-1 text-xs text-slate-500">Ajusta el corte para comparar dos grupos. No determina cargos ni jerarquías.</p>
                 <label htmlFor="experience-cut" className="mt-5 flex items-center justify-between gap-3 text-sm text-slate-700">Umbral de experiencia <span className="rounded-lg bg-blue-50 px-3 py-1 font-semibold text-umss-azul">{limite} años</span></label>
                 <input id="experience-cut" aria-valuetext={`${limite} años`} type="range" min="0" max="30" step="1" value={limite} onChange={e => onLimite(Number(e.target.value))} className="my-4 w-full accent-[#003770]" />
-                <div aria-live="polite" className="grid grid-cols-2 gap-4 text-sm"><div className="rounded-xl bg-slate-50 p-4"><p className="text-slate-500">Hasta {limite} años</p><p className="mt-1 font-semibold text-slate-900">{s.segmentacion.juniorCount} personas <span className="font-normal text-slate-500">{s.experiencia.total ? percentLabel(s.segmentacion.juniorPct) : 'Sin datos'}</span></p></div><div className="rounded-xl bg-slate-50 p-4"><p className="text-slate-500">Más de {limite} años</p><p className="mt-1 font-semibold text-slate-900">{s.segmentacion.consolidadoCount} personas <span className="font-normal text-slate-500">{s.experiencia.total ? percentLabel(s.segmentacion.consolidadoPct) : 'Sin datos'}</span></p></div></div>
+                <div aria-live="polite" className="grid grid-cols-2 gap-4 text-sm">
+                    <div className="rounded-xl bg-slate-50 p-4">
+                        <p className="text-slate-500">Hasta {limite} años</p>
+                        <p className="mt-1 font-semibold text-slate-900">{s.segmentacion.juniorCount} personas <span className="font-normal text-slate-500">{s.experiencia.total ? percentLabel(s.segmentacion.juniorPct) : 'Sin datos'}</span></p>
+                    </div>
+                    <div className="rounded-xl bg-slate-50 p-4">
+                        <p className="text-slate-500">Más de {limite} años</p>
+                        <p className="mt-1 font-semibold text-slate-900">{s.segmentacion.consolidadoCount} personas <span className="font-normal text-slate-500">{s.experiencia.total ? percentLabel(s.segmentacion.consolidadoPct) : 'Sin datos'}</span></p>
+                    </div>
+                </div>
                 <p className="mt-3 text-xs text-slate-500">Base: {s.experiencia.total} respuestas con experiencia válida.</p>
             </article>
             <Indicator label="Media del tiempo sin empleo declarado" value={s.desempleo.total ? numberLabel(s.desempleo.media) : '—'} unit="meses" detail={<>Mediana: {s.desempleo.total ? `${numberLabel(s.desempleo.mediana)} meses` : 'sin datos'}<br />{s.desempleo.total} respuestas con unidad conocida · {s.desempleoExcluidos} excluidas. No representa necesariamente el desempleo actual.</>} />
         </div>
+
+        {/* Perfil demográfico y remuneración salarial (Tablas 4, 5 y 22 del informe) */}
+        <div className="border-t border-slate-200 pt-6">
+            <div className="mb-4">
+                <p className="text-xs font-semibold uppercase tracking-widest text-teal-700">Composición demográfica y nivel salarial</p>
+                <h3 className="mt-2 text-xl font-bold tracking-tight text-slate-900">Perfil demográfico e ingresos promedio</h3>
+                <p className="mt-1 text-sm text-slate-500">
+                    Estructura por edad, género y remuneración mensual percibida por graduados empleados en organizaciones (Informe ARCUSUR).
+                </p>
+            </div>
+            <div className="grid gap-5 lg:grid-cols-3">
+                <Distribution
+                    title="Distribución por edad"
+                    description={`Base: ${edadTotal} titulados con edad declarada (Tabla 4 del informe).`}
+                    data={s.edad}
+                />
+                <Distribution
+                    title="Distribución por género"
+                    description={`Base: ${generoTotal} titulados (Tabla 5 del informe).`}
+                    data={s.genero}
+                    tone="teal"
+                />
+                <Distribution
+                    title="Remuneración mensual promedio"
+                    description={`Base: ${remTotal} titulados que trabajan en organizaciones (Tabla 22 del informe).`}
+                    data={s.remuneracion}
+                />
+            </div>
+        </div>
+
         {s.cohortes.length > 0 && <section className="space-y-5" aria-labelledby="graduation-title">
             <div><h3 id="graduation-title" className="text-lg font-semibold text-slate-900">Perfil por año de egreso</h3><p className="mt-1 text-sm text-slate-600">Referencia: {s.egreso.anioReferencia}. Diferencia entre años calendario; no mide la fecha exacta de titulación.</p></div>
             <div className="grid gap-4 sm:grid-cols-3">
