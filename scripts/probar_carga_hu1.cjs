@@ -22,7 +22,7 @@ const reader = require('../lib/readSurveyFile.ts');
 const validation = require('../lib/fileValidation.ts');
 const messages = require('../lib/userMessages.ts');
 
-const books = fs.readdirSync('datos').filter(n => n.endsWith('.xlsx')).map(name => {
+const books = fs.readdirSync('datos').filter(n => n.startsWith('ENCUESTA') && n.endsWith('.xlsx')).map(name => {
   const workbook = XLSX.readFile('datos/' + name);
   return { name, type: name.includes('EMPLEADORES') ? 'encuesta_empleadores' : 'encuesta_titulados',
     rows: XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { defval: '' }) };
@@ -499,7 +499,7 @@ test('exportacion segura, estadistica finita y lectura de historicos', () => {
   const raw = graduates.rows[0];
   const fixed = p.normalizeStored({ id: 1, raw_data: raw, tiempo_desempleado: 999 }, graduates.type);
   assert.notEqual(fixed.tiempo_desempleado, 999);
-  const current = { version_mapeo: 2, raw_data: raw, tiempo_desempleado_meses: 24 };
+  const current = { version_mapeo: p.MAPPING_VERSION, raw_data: raw, tiempo_desempleado_meses: 24 };
   assert.equal(p.normalizeStored(current, graduates.type), current);
 });
 
@@ -512,6 +512,12 @@ function clientMock(stored, writeError = null) {
   return { client, writes };
 }
 test('guardado unico sin borrado: omite historicos y transmite el lote en una sola solicitud', async () => {
+  const emptyEmployers = clientMock([]);
+  const firstLoad = await repository.savePreparedRows(emptyEmployers.client, 'encuesta_empleadores', [
+    { raw_data: { respuesta: 'inicial' }, archivo_sha256: 'a'.repeat(64), hoja_origen: 'Respuestas', fila_origen: 2 },
+  ]);
+  assert.deepEqual(firstLoad, { inserted: 1, skipped: 0 });
+  assert.equal(emptyEmployers.writes.length, 1, 'La primera carga funciona sin RPC de reemplazo');
   const original = {raw_data: graduates.rows[0], respuesta_origen_id:String(graduates.rows[0].Id), instrumento_origen:'form-a'};
   const { client, writes } = clientMock([{ id:1, ...original }]);
   const result = await repository.savePreparedRows(client, graduates.type, [original, {...original, respuesta_origen_id:'nuevo'}]);

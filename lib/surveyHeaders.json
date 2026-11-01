@@ -1,0 +1,246 @@
+{
+  "encuesta_titulados": {
+    "edad": [
+      "Edad que tiene actualmente:"
+    ],
+    "genero": [
+      "Género:"
+    ],
+    "ha_realizado_posgrado": [
+      "Posterior a sus estudios de pregrado en Ingeniería en Sistemas, ¿Ha realizado o se encuentra realizando algún programa de formación complementaria? (programas de posgrado, diplomados, doble titulación"
+    ],
+    "nivel_posgrado_cursado": [
+      "¿CUÁL ES EL PROGRAMA DE FORMACIÓN COMPLEMENTARIA DE MAYOR NIVEL QUE HA CONCLUIDO O QUE SE ENCUENTRA REALIZANDO?"
+    ],
+    "institucion_posgrado_cursado": [
+      "¿DONDE HA CURSADO EL PROGRAMA INDICADO?"
+    ],
+    "financiamiento_posgrado_cursado": [
+      "¿CUÁL FUE LA FUENTE DE FINANCIAMIENTO PARA CURSAR EL PROGRAMA INDICADO?"
+    ],
+    "nombre_programa_cursado": [
+      "INDIQUE EL NOMBRE DEL PROGRAMA"
+    ],
+    "interes_futuro_posgrado": [
+      "¿ESTARÍA INTERESADO EN REALIZAR ESTUDIOS EN ALGÚN PROGRAMA DE POSGRADO\r\nDENTRO DE LAS ÁREAS DE LA INGENIERÍA EN SISTEMAS?"
+    ],
+    "area_interes_posgrado": [
+      "¿EN CUÁL DE LAS SIGUIENTES ÁREAS LE INTERESARÍA REALIZAR EL PROGRAMA?"
+    ],
+    "institucion_optaria_posgrado": [
+      "EN CASO DE REALIZAR UN ESTUDIO DE POSGRADO ¿EN QUÉ ORGANIZACIÓN\r\nEDUCATIVA OPTARÍA POR REALIZAR SUS ESTUDIOS DE POSGRADO?"
+    ],
+    "opinion_posgrado_fcyt": [
+      "¿CUAL ES SU OPINIÓN PERSONAL RESPECTO AL POSGRADO DE LA FCyT?.¿Considera que existen programas de formación de posgrado ofertados en la Dirección de Posgrado de la FCyT que son afines a las áreas de e"
+    ],
+    "anios_vida_profesional": [
+      "¿CUÁNTOS SON LOS AÑOS DE VIDA PROFESIONAL QUE LLEVA HASTA LA FECHA?"
+    ],
+    "tiempo_desempleado": [
+      "DE LA CANTIDAD DE TIEMPO RESPONDIDA EN LA PREGUNTA ANTERIOR, ¿QUÉ CANTIDAD CORRESPONDE AL TOTAL DE TIEMPO EN QUE SE HA ENCONTRADO DESEMPLEADO?"
+    ],
+    "situacion_laboral_actual": [
+      "¿CUÁL DE LAS SIGUIENTES AFIRMACIONES DESCRIBE SU SITUACIÓN LABORAL ACTUAL?"
+    ],
+    "empresa_trabajo_actual": [
+      "Nombre de la empresa u organización donde trabaja actualmente:"
+    ],
+    "rubro_empresa_trabajo": [
+      "¿CUÁL ES EL RUBRO DE LA ORGANIZACIÓN DONDE TRABAJA ACTUALMENTE?"
+    ],
+    "otro_rubro_trabajo": [
+      "OTRO RUBRO:"
+    ],
+    "sector_empresa_trabajo": [
+      "EL TRABAJO EN EL QUE SE ENCUENTRA, ¿A QUÉ SECTOR CORRESPONDE?"
+    ],
+    "departamento_trabajo": [
+      "¿EN QUÉ DEPARTAMENTO DE BOLIVIA TRABAJA?"
+    ],
+    "area_empresa_trabajo": [
+      "¿CUÁL ES EL ÁREA DENTRO DE LA ORGANIZACIÓN DONDE DESARROLLA SUS\r\nACTIVIDADES PROFESIONALES?"
+    ],
+    "otra_area_trabajo": [
+      "OTR@ AREA:"
+    ],
+    "cargo_actual": [
+      "¿Cuál es el cargo que desempeña en su actual trabajo?"
+    ],
+    "otro_cargo_actual": [
+      "OTR@ CARGO:"
+    ],
+    "pertinencia_laboral_carrera": [
+      ".En su actual puesto de trabajo las labores que se encuentra desempeñando son pertinentes a su formación como Ingeniero de Sistemas."
+    ],
+    "antiguedad_trabajo_actual": [
+      "¿Qué antigüedad tiene en su actual trabajo?"
+    ],
+    "medio_obtencion_trabajo": [
+      "¿A través de qué medio obtuvo el trabajo que actualmente desempeña?"
+    ],
+    "remuneracion_mensual": [
+      "Señale la remuneración promedio mensual que está percibiendo en su actual trabajo."
+    ],
+    "origen_emprendimiento": [
+      "¿Cuál es el origen del desarrollo de su propio emprendimiento?"
+    ],
+    "tipo_entregable_negocio": [
+      "¿Qué tipo de entregable genera el negocio?"
+    ],
+    "financiamiento_negocio": [
+      "¿Ha requerido financiamiento externo para su negocio?"
+    ],
+    "satisfaccion_negocio": [
+      ".¿Qué tan satisfecho está con el rendimiento actual de su negocio?"
+    ],
+    "importancia_formacion_negocio": [
+      ".¿Qué tan importante considera que fue su formación en Ingeniería en Sistemas para iniciar y gestionar su negocio?"
+    ],
+    "es_primer_empleo": [
+      "¿El trabajo que ejerce actualmente es su primer empleo?"
+    ],
+    "razon_desempleo": [
+      "Indique cuál es la razón por la que actualmente no trabaja en un empleo relacionado con su formación como Ingeniero de Sistemas"
+    ],
+    "ha_trabajado_antes": [
+      "Si bien actualmente no trabaja, ¿Ha tenido algún trabajo antes?"
+    ],
+    "tiempo_conseguir_primer_empleo": [
+      "Luego de titularse, ¿Cuánto tiempo se demoró en conseguir su primer trabajo relacionado con su formación como Ingeniero en Sistemas?"
+    ],
+    "cantidad_empleos_desempenados": [
+      "Desde que se tituló, ¿en cuántos empleos usted se ha desempeñado? (Incluyendo su actual empleo si corresponde)"
+    ],
+    "satisfaccion_global_carrera": [
+      ".De manera global ¿Cuál es el grado de satisfacción que ha desarrollado con la formación profesional recibida en la Carrera de Ingenieria de Sistemas"
+    ],
+    "concordancia_formacion_requerimientos": [
+      ".Considera que existe concordancia entre la formación profesional recibida en la Carrera de Ingeniería de Sistemas  y los requerimientos"
+    ],
+    "aspectos_utilidad": [
+      "¿Qué aspectos de la Carrera les resultaron de bastante utilidad?"
+    ],
+    "aspectos_mejora": [
+      "¿Qué aspectos de la Carrera considera que pueden mejorarse?"
+    ],
+    "asignaturas_ventaja_competitiva": [
+      "Indique 5 asignaturas cursadas en la Carrera que considera que le brindaron una ventaja competitiva al momento de buscar trabajo o desenvolverse profesionalmente."
+    ],
+    "otra_asignatura_ventaja": [
+      "Otra asignatura:"
+    ],
+    "asignaturas_menos_utiles": [
+      "Indique 5 asignaturas cursadas en la Carrera que no le resultaron de mucha utilidad en su vida profesional."
+    ],
+    "otra_asignatura_menos_util": [
+      "Otra asignatura:1"
+    ],
+    "interes_red_contactos": [
+      "¿Le interesaría formar parte una red de contactos oficial de la Carrera de Ingeniería en Sistemas para compartir experiencias, proyectos y ofertas laborales?"
+    ],
+    "email_contacto": [
+      "Email de contacto:"
+    ],
+    "telefono_contacto": [
+      "Número telefónico de contacto:\r\nDE PREFERENCIA CON ACCESO A WHATASAPP"
+    ],
+    "linkedin_url": [
+      "LINK de LinkedIn"
+    ]
+  },
+  "encuesta_empleadores": {
+    "correo_electronico": [
+      "Dirección de correo electrónico"
+    ],
+    "nombre_empresa": [
+      "1)\tNombre de la Empresa o Institución"
+    ],
+    "tipo_organizacion": [
+      "2)\tTipo de organización"
+    ],
+    "tamano_organizacion": [
+      "3)\tTamaño de la organización"
+    ],
+    "rubro_sector": [
+      "4)  Indique el rubro o sector principal de la organización en la que se desempeña laboralmente el profesional titulado de la Carrera de Ingeniería de Sistemas. "
+    ],
+    "ha_contratado_sistemas": [
+      "5) ¿La organización ha contratado Ingenieros de la carrera de Sistemas en los últimos 5 años?"
+    ],
+    "probabilidad_incorporacion_futura": [
+      "6) Considerando las necesidades actuales y proyectadas de la organización, ¿existe la posibilidad de incorporar Ingenieros de Sistemas en su equipo de trabajo durante los próximos años? "
+    ],
+    "nivel_formacion_demandado": [
+      "7)\t¿Qué nivel de formación académica o actualización profesional, demanda su organización para contratar nuevos profesionales del área?"
+    ],
+    "medio_convocatoria": [
+      "8)\t¿A través de qué medio convoca a profesionales en su organización (empresa o institución)?"
+    ],
+    "cargos_desempenados": [
+      "9) ¿Qué tipo de cargos desempeñan los profesionales titulados de la Carrera de Ingeniería de Sistemas en su organización?\n(Puede seleccionar más de una opción)"
+    ],
+    "areas_emergentes_importantes": [
+      "10) Desde su experiencia en el sector laboral, ¿qué nuevas áreas de conocimiento, tecnologías o tendencias emergentes considera importantes para la formación del profesional de Ingeniería de Sistemas? "
+    ],
+    "herramientas_tecnologicas_demandadas": [
+      "11) ¿Cuáles son las nuevas herramientas tecnológicas (software, plataformas o entornos de desarrollo) que, a su criterio, debería conocer y manejar el profesional titulado de la Carrera de Ingeniería de Sistemas? "
+    ],
+    "habilidades_fundamentales": [
+      "12) Desde su experiencia en el ámbito laboral, ¿qué habilidades, competencias y destrezas considera fundamentales que debe desarrollar el profesional de Ingeniería de Sistemas para responder adecuadamente a las necesidades de la organización y del mercado laboral? "
+    ],
+    "confianza_carrera_formadora": [
+      " [La Carrera de Ingeniería de Sistemas de la Universidad Mayor de San Simón brinda confianza a nuestra organización como formadora de profesionales del área tecnológica.]"
+    ],
+    "consistencia_titulo_competencias": [
+      " [Considero que el título profesional otorgado por la Carrera de Ingeniería de Sistemas es consistente con el nivel de formación y las competencias demostradas por sus titulados.]"
+    ],
+    "consulta_regular_opinion": [
+      " [Las autoridades de la Carrera de Ingeniería de Sistemas consultan regularmente nuestra opinión como empleadores respecto al perfil profesional y las competencias requeridas en el ámbito laboral.]"
+    ],
+    "conocimiento_perfil_egreso": [
+      " [Conozco el perfil profesional y las competencias de egreso declaradas por la Carrera de Ingeniería de Sistemas.]"
+    ],
+    "coherencia_perfil_desempeno": [
+      " [El perfil profesional declarado por la Carrera de Ingeniería de Sistemas es coherente con el desempeño laboral demostrado por sus titulados.]"
+    ],
+    "formacion_desempeno_destacado": [
+      " [La formación proporcionada por la Carrera de Ingeniería de Sistemas permite a sus titulados alcanzar un desempeño destacado tanto en el ámbito profesional como en su formación integral.]"
+    ],
+    "incorporacion_necesidades_practicas": [
+      " [La Carrera de Ingeniería de Sistemas considera nuestra opinión como empleadores e incorpora las necesidades del sector laboral en la definición y mejora de actividades de formación práctica, pasantías y modalidades de titulación.]"
+    ],
+    "evidencia_competencias_laborales": [
+      " [El desempeño profesional de los titulados de Ingeniería de Sistemas evidencia el desarrollo de competencias laborales como: comunicación efectiva, análisis y resolución de problemas, pensamiento crítico, aprendizaje continuo, trabajo en equipo, iniciativa personal y manejo adecuado de tecnologías de información.]"
+    ],
+    "valores_etica_responsabilidad": [
+      " [Los profesionales titulados de Ingeniería de Sistemas demuestran valores y actitudes relacionados con la ética profesional, responsabilidad social, inclusión, diversidad, respeto a los derechos humanos y compromiso con el medio ambiente.]"
+    ],
+    "participacion_evaluacion_desempeno": [
+      " [He participado en procesos de recopilación de información, evaluación o retroalimentación relacionados con el desempeño laboral de los titulados de la Carrera de Ingeniería de Sistemas.]"
+    ],
+    "vinculos_oportunidades_laborales": [
+      " [La Carrera de Ingeniería de Sistemas mantiene vínculos con organizaciones e instituciones que generan oportunidades laborales para sus titulados.]"
+    ],
+    "participacion_vinculacion_entorno": [
+      " [He participado en actividades de vinculación con el entorno laboral y tecnológico organizadas por la Carrera de Ingeniería de Sistemas o la Facultad de Ciencias y Tecnología.]"
+    ],
+    "participacion_difusion_pasantias": [
+      " [He participado en actividades de difusión de oportunidades laborales, convocatorias, pasantías o prácticas profesionales organizadas por la Carrera de Ingeniería de Sistemas.]"
+    ],
+    "participacion_intercambio_conocimiento": [
+      " [He participado en actividades de vinculación entre profesionales del sector tecnológico, empleadores, docentes y estudiantes de la Carrera de Ingeniería de Sistemas para el intercambio de conocimientos, experiencias y desarrollo de trabajos conjuntos.]"
+    ],
+    "consulta_retroalimentacion_plan": [
+      " [Como empleador, he sido consultado sobre el desempeño profesional de los titulados de Ingeniería de Sistemas, con el propósito de retroalimentar el perfil profesional y el plan de estudios de la Carrera.]"
+    ],
+    "consulta_pertinencia_formacion": [
+      " [Como empleador, la Carrera de Ingeniería de Sistemas ha consultado nuestra opinión respecto a la pertinencia de la formación impartida y su correspondencia con las necesidades del sector tecnológico y laboral.]"
+    ],
+    "busqueda_talento_umss": [
+      " [Cuando nuestra organización requiere profesionales del área de Sistemas, recurrimos a la Universidad Mayor de San Simón y a la Carrera de Ingeniería de Sistemas como fuente de búsqueda de talento profesional.]"
+    ],
+    "consulta_procesos_autoevaluacion": [
+      " [He sido consultado periódicamente por la Carrera de Ingeniería de Sistemas durante sus procesos de autoevaluación y mejora continua.]"
+    ]
+  }
+}

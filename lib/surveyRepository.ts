@@ -43,9 +43,32 @@ export async function savePreparedRows(client: SupabaseClient, table: SurveyType
     if (error) throw error;
     return { inserted: count, skipped: count == null ? null : payload.length - count };
 }
+export type ReplacementPreview = { version: string; empleadores: number; titulados: number };
+export async function previewEmployerReplacement(client: SupabaseClient): Promise<ReplacementPreview> {
+    const { data, error } = await client.rpc('previsualizar_reemplazo_empleadores');
+    if (error) throw error;
+    if (!data || typeof data.version !== 'string' || !Number.isSafeInteger(data.empleadores) || !Number.isSafeInteger(data.titulados)) throw new UserFacingError('No se pudo validar el resumen de reemplazo.');
+    return data;
+}
+export async function replaceEmployerRows(client: SupabaseClient, payload: Row[], preview: ReplacementPreview) {
+    if (!payload.length) throw new UserFacingError('No se puede reemplazar con un archivo vacío.');
+    const rows = await Promise.all(payload.map(async row => {
+        const key = sourceRecordKey(row, 'encuesta_empleadores');
+        if (!key) throw new UserFacingError('Cada fila necesita procedencia verificable antes del reemplazo.');
+        return { ...row, respuesta_hash: await sha256(key) };
+    }));
+    const { data, error } = await client.rpc('reemplazar_encuesta_empleadores', { p_filas: rows, p_version_esperada: preview.version });
+    if (error) throw error;
+    if (!data || data.inserted !== rows.length || typeof data.sin_cambios !== 'boolean' || (!data.sin_cambios && typeof data.respaldo_id !== 'string')) throw new UserFacingError('No se pudo confirmar el resultado. Revisa la base y el historial antes de repetir.');
+    return data as { inserted: number; sin_cambios: boolean; respaldo_id: string | null };
+}
 export function databaseMessage(error: unknown): string {
     if (error instanceof UserFacingError) return error.message;
     const info = error as { code?: string; message?: string };
+    if (['PGRST202', '42883'].includes(info?.code ?? '')) return 'La función solicitada no está instalada. El responsable debe aplicar scripts/reemplazo_seguro_empleadores.sql en Supabase y recargar esta página.';
+    if (info?.code === '40001') return 'Los datos cambiaron desde la vista previa. Recarga y revisa el resumen antes de confirmar nuevamente.';
+    if (info?.code === '23503') return 'Hay relaciones con otras tablas que impiden el reemplazo seguro. El responsable debe revisar esas relaciones. No se reemplazó ningún dato.';
+    if (info?.code === '22023') return 'La operación contiene filas o una revisión inválidas. Revisa el archivo y vuelve a preparar la vista previa.';
     if (info?.code === '42703' || info?.code === 'PGRST204') return 'Faltan columnas necesarias para la carga. El responsable de Supabase debe ejecutar scripts/habilitar_carga_validada.sql. Referencia: CARGA-COLUMNAS.';
     if (info?.code === '42P10') return 'Falta el índice para evitar respuestas duplicadas. El responsable de Supabase debe ejecutar scripts/habilitar_carga_validada.sql. Referencia: CARGA-INDICE.';
     if (info?.code === 'PGRST205') return 'La tabla de encuestas no está disponible en la API. Revisa el proyecto conectado y el esquema en Supabase. Referencia: CARGA-TABLA.';

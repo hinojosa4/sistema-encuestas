@@ -9,7 +9,7 @@ export type Quality = { estado: string; detalle?: string };
 export type PreparedRow = Row & { raw_data: Row; respuestas_originales: Row; calidad_datos: Record<string, Quality> };
 export type Issue = { fila: number; campo: string; mensaje: string };
 export const MAX_ROWS = 10000;
-export const MAPPING_VERSION = 2;
+export const MAPPING_VERSION = 3;
 
 export const employerScales = [
     'confianza_carrera_formadora', 'consistencia_titulo_competencias', 'consulta_regular_opinion',
@@ -32,6 +32,7 @@ export const cleanString = (value: unknown) => String(value ?? '').normalize('NF
 export function parseDuration(value: unknown, kind: 'experiencia' | 'desempleo', policy: UnitPolicy = 'sin_definir') {
     const text = normalizarTexto(cleanString(value).replace(',', '.'));
     if (empty(value)) return { valor: null, estado: 'sin_respuesta' };
+    if (text === 'no sabe' || text === 'no aplica') return { valor: null, estado: text === 'no sabe' ? 'no_sabe' : 'no_aplica' };
     if (kind === 'desempleo' && ['nada', 'ninguno', 'ninguno siempre estuve con trabajo'].includes(text)) return { valor: 0, estado: 'respondida' };
     const match = cleanString(value).toLowerCase().match(/^(\d+(?:[.,]\d+)?)\s*(años?|anios?|mes(?:es)?)?$/);
     if (!match) return { valor: null, estado: 'invalida' };
@@ -138,6 +139,10 @@ export function prepareRow(raw: Row, type: SurveyType, unit: UnitPolicy = 'sin_d
             row[field] = null;
             quality[field] = { estado: 'invalida', detalle: 'Texto de relleno; el original se conserva.' };
         }
+        if (['no sabe', 'no aplica'].includes(normalizarTexto(original))) {
+            row[field] = null;
+            quality[field] = { estado: normalizarTexto(original) === 'no sabe' ? 'no_sabe' : 'no_aplica' };
+        }
     }
     if (type === 'encuesta_titulados') {
         for (const [field, normalize] of [['situacion_laboral_actual', normalizarSituacion], ['sector_empresa_trabajo', normalizarSector], ['tiempo_conseguir_primer_empleo', normalizarPlazo]] as const) {
@@ -225,7 +230,9 @@ export function inspectRows(rows: Row[], type: SurveyType, unit: UnitPolicy = 's
         ? ['anios_vida_profesional', 'situacion_laboral_actual', 'sector_empresa_trabajo']
         : ['nombre_empresa', 'tipo_organizacion', 'confianza_carrera_formadora'];
     const prepared: PreparedRow[] = [], issues: Issue[] = [];
-    let emptyRows = 0, duplicates = 0;
+    let emptyRows = 0, duplicates = 0, exactDuplicates = 0;
+    const signatures = new Set<string>();
+    const organizations = new Map<string, number>();
     const sourceIds = new Map<string, string>();
     rows.forEach((raw, index) => {
         const hasAnswers = Object.entries(raw).some(([header, value]) => {
@@ -235,6 +242,10 @@ export function inspectRows(rows: Row[], type: SurveyType, unit: UnitPolicy = 's
         if (!hasAnswers) { emptyRows++; return; }
         const signature = canonicalResponse(raw);
         const row = prepareRow(raw, type, unit);
+        if (signatures.has(signature)) exactDuplicates++;
+        signatures.add(signature);
+        const organization = normalizarTexto(row.nombre_empresa);
+        if (organization) organizations.set(organization, (organizations.get(organization) ?? 0) + 1);
         const sourceRow = typeof raw.__rowNum__ === 'number' ? raw.__rowNum__ + 1 : index + 2;
         row.fila_origen = sourceRow;
         if (!empty(row.respuesta_origen_id)) {
@@ -259,6 +270,7 @@ export function inspectRows(rows: Row[], type: SurveyType, unit: UnitPolicy = 's
         errors.push('La hoja seleccionada no tiene respuestas. Elige otra hoja o carga un archivo que contenga respuestas debajo de los títulos.');
     }
     return { rows: prepared, issues, errors, unknownHeaders: headerReview.unknownHeaders, emptyRows, duplicates,
+        exactDuplicates, repeatedOrganizations: [...organizations.values()].filter(n => n > 1).length,
         expectedFields: headerReview.expected, recognizedFields: headerReview.recognized };
 }
 
@@ -293,7 +305,9 @@ export function sourceRecordKey(row: Row, type: SurveyType): string | null {
 export function normalizeStored(row: Row, type: SurveyType): Row {
     if (row.version_mapeo === MAPPING_VERSION) return row;
     if (row.raw_data && typeof row.raw_data === 'object' && !Array.isArray(row.raw_data)) {
-        const prepared = prepareRow(row.raw_data as Row, type);
+        const quality = row.calidad_datos as Record<string, Quality> | undefined;
+        const recordedUnit = quality?.tiempo_desempleado?.detalle?.match(/Unidad sin escribir confirmada durante la carga: (meses|anios)\./)?.[1] as UnitPolicy | undefined;
+        const prepared = prepareRow(row.raw_data as Row, type, recordedUnit ?? 'sin_definir');
         return { ...row, ...prepared };
     }
     return row;

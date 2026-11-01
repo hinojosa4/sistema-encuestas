@@ -3,8 +3,12 @@ import { exportCompetencies, resumirCompetencias, type GraduateScope } from './c
 import { resumirEmpleabilidad } from './employability';
 import { filasCruceFinanciamiento, resumirFinanciamiento, resumirFormacion } from './postgraduate';
 import { calcularDistribucionFrecuencias } from './statistics';
+import { describirCuantitativa } from './statistics';
+import { buildCrossAnalyses } from './crossAnalysis';
+import { dataDictionary, variableCoverage } from './dataDictionary';
+import { emergingRules, summarizeEmerging } from './emergingAreas';
 
-export const REPORT_VERSION = '2026-10-19.3';
+export const REPORT_VERSION = '2026-10-29.1';
 export type ReportCell = string | number | null;
 export type ReportTable = { nombre: string; descripcion: string; columnas: string[]; filas: ReportCell[][] };
 export type ReportParameters = { scope: GraduateScope; corte: number };
@@ -47,6 +51,8 @@ export function buildReport(rawGraduates: Row[], rawEmployers: Row[], params: Re
     const hu4 = resumirCompetencias(g, e, params.scope);
     const exported = exportCompetencies(hu4);
     const c = hu3.chi;
+    const cruces = buildCrossAnalyses(g, e);
+    const emerging = summarizeEmerging(e);
     const tables: ReportTable[] = [
         table('Resumen', 'Indicadores y sus bases. Los ceros reales se conservan; ausencias numéricas quedan vacías.', [
             { indicador: 'Experiencia profesional: media (años)', valor: hu1.experiencia.total ? hu1.experiencia.media : null, base_valida: hu1.experiencia.total, excluidas: hu1.experienciaExcluidos },
@@ -79,6 +85,36 @@ export function buildReport(rawGraduates: Row[], rawEmployers: Row[], params: Re
         table('HU3_Fuentes', 'Fuentes utilizadas; no financiamiento futuro.', hu3.distribucion, ['nombre','cantidad','porcentaje']),
         table('HU3_Celdas', 'Tabla larga: observadas, porcentajes por nivel, esperadas y bases.', filasCruceFinanciamiento(hu3), ['nivel_cursado','financiamiento_utilizado','cantidad','porcentaje_del_nivel','frecuencia_esperada','base_cruce']),
     ];
+    tables.push(table('Bases_por_variable', 'N total, población aplicable, válidos y exclusiones. Denominador por pregunta; empleadores sin filtro de titulados.', dataDictionary.map(v => ({
+        encuesta: v.encuesta, campo: v.id, pregunta: v.nombre,
+        ...variableCoverage(v.encuesta === 'encuesta_titulados' ? g : e, v.id),
+        filtro: 'Todos los registros del instrumento; aplica ruta por pregunta',
+    }))));
+    tables.push(table('Diccionario', 'Encabezados originales e identificadores estables; las matrices empleadoras contienen ítems ordinales.', dataDictionary.map(v => ({ ...v, encabezados_excel: v.encabezados_excel.join(' | '), categorias: v.categorias.join(' | ') }))));
+    tables.push(table('Experiencia_Descriptiva', 'Años finitos válidos, varianza y desviación n−1; cuantiles tipo 7. CV solo con media positiva y valores no negativos.', [{
+        ...describirCuantitativa(g.map(r => r.anios_vida_profesional_normalizados)), modas: describirCuantitativa(g.map(r => r.anios_vida_profesional_normalizados)).modas.join('; '),
+    }]));
+    for (const cross of cruces) {
+        const chi = cross.chi;
+        tables.push(table(`Cruce_${cross.id}_Celdas`, cross.regla, chi.filas.flatMap((fila, i) => chi.columnas.map((columna, j) => ({
+            fila, columna, observada: chi.matriz[i][j], esperada: chi.esperadas[i][j], porcentaje_fila: chi.matriz[i][j] / chi.totalesFila[i] * 100,
+            total_encuesta: cross.totalEncuesta, base_pares: chi.total, excluidos: chi.excluidos,
+        }))), ['fila', 'columna', 'observada', 'esperada', 'base_pares']));
+    }
+    tables.push(table('Cruces_Contrastes', 'Pearson sin Yates; p asintótico solo con supuestos. Fisher bilateral en 2×2; V de Cramér descriptiva. Sin interpretación causal.', cruces.map(cross => ({
+        cruce: cross.id, titulo: cross.titulo, origen: cross.origen, reglas: cross.regla,
+        total: cross.totalEncuesta, base_valida: cross.chi.total, excluidos: cross.chi.excluidos,
+        chi2: cross.chi.chi2, gl: cross.chi.gradosLibertad, estado_pearson: cross.chi.estado,
+        p_pearson_valido: cross.chi.pValor, p_fisher_bilateral: cross.chi.fisherP,
+        metodo_preferido: cross.chi.estado === 'frecuencias_bajas' && cross.chi.fisherP !== null ? 'Fisher bilateral' : cross.chi.estado === 'calculada' ? 'Pearson' : 'Descripción; sin inferencia válida',
+        v_cramer: cross.chi.vCramer, esperadas_menor5: cross.chi.celdasMenor5, esperada_minima: cross.chi.minimaEsperada, alfa: cross.chi.alfa,
+    }))));
+    tables.push(table('Areas_Emergentes', 'Multietiqueta; porcentaje sobre total real de empleadores y sobre respuestas clasificables. No son organizaciones únicas.', emerging.categorias));
+    tables.push(table('Areas_Bases', 'Clasificación preliminar revisable, sin textos individuales en informes generales.', [{
+        total: emerging.total, clasificables: emerging.clasificables, sin_respuesta: emerging.sinRespuesta,
+        sin_clasificar: emerging.sinClasificar, no_sabe: emerging.noSabe, no_interpretable: emerging.noInterpretable, requieren_revision: emerging.requierenRevision, version: emerging.version,
+    }]));
+    tables.push(table('Areas_Reglas', 'Reglas orientativas; coincidencias negadas se marcan para revisión manual. Etiquetas manuales solo si el texto original coincide.', emergingRules.map(r => ({ id: r.id, categoria: r.nombre, patron: r.patron.source }))));
     for (const view of ['observadas', 'porcentajes', 'esperadas'] as const) {
         tables.push({
             nombre: `HU3_Matriz_${view}`, descripcion: view === 'observadas' ? 'Matriz de doble entrada. Totales en personas.' : view === 'porcentajes' ? 'Porcentajes por fila; los totales del borde siguen siendo cantidades de personas.' : 'Valores teóricos bajo independencia. No son personas adicionales.',
@@ -128,7 +164,7 @@ export function buildReport(rawGraduates: Row[], rawEmployers: Row[], params: Re
         radares: radarGroups.map(group => ({ titulo: group.titulo, ejes: group.items.map(r => ({ nombre: r.titulo, media: r.media, validas: r.validas })), maximo: 3 })),
     };
 }
-export type AnalysisReport = ReturnType<typeof buildReport> & { huella: string };
+export type AnalysisReport = ReturnType<typeof buildReport> & { huella: string; datosVersion?: string };
 
 export function tableToCsv(t: ReportTable) {
     const escape = (value: ReportCell) => `"${String(safeSpreadsheetValue(value) ?? '').replace(/"/g, '""')}"`;

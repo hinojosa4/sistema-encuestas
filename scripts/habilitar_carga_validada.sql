@@ -2,6 +2,13 @@
 -- Cambios aditivos para HU1 y carga validada. No borra ni reinterpreta respuestas.
 BEGIN;
 SET LOCAL lock_timeout = '10s';
+DO $$
+BEGIN
+    IF to_regclass('public.encuesta_titulados') IS NULL
+       OR to_regclass('public.encuesta_empleadores') IS NULL THEN
+        RAISE EXCEPTION 'Faltan las tablas encuesta_titulados o encuesta_empleadores. Ejecutar primero mejorar_base_datos.sql en este proyecto.';
+    END IF;
+END $$;
 ALTER TABLE public.encuesta_titulados
     ADD COLUMN IF NOT EXISTS anio_egreso INTEGER,
     ADD COLUMN IF NOT EXISTS respuesta_hash TEXT,
@@ -9,7 +16,15 @@ ALTER TABLE public.encuesta_titulados
     ADD COLUMN IF NOT EXISTS archivo_nombre TEXT,
     ADD COLUMN IF NOT EXISTS hoja_origen TEXT,
     ADD COLUMN IF NOT EXISTS instrumento_origen TEXT,
-    ADD COLUMN IF NOT EXISTS version_mapeo INTEGER;
+    ADD COLUMN IF NOT EXISTS version_mapeo INTEGER,
+    ADD COLUMN IF NOT EXISTS respuesta_origen_id TEXT,
+    ADD COLUMN IF NOT EXISTS fila_origen INTEGER,
+    ADD COLUMN IF NOT EXISTS version_instrumento TEXT,
+    ADD COLUMN IF NOT EXISTS raw_data JSONB,
+    ADD COLUMN IF NOT EXISTS respuestas_originales JSONB,
+    ADD COLUMN IF NOT EXISTS codigos_ordinales JSONB,
+    ADD COLUMN IF NOT EXISTS selecciones_multiples JSONB,
+    ADD COLUMN IF NOT EXISTS calidad_datos JSONB;
 ALTER TABLE public.encuesta_empleadores
     ADD COLUMN IF NOT EXISTS respuesta_hash TEXT,
     ADD COLUMN IF NOT EXISTS archivo_sha256 TEXT,
@@ -17,7 +32,14 @@ ALTER TABLE public.encuesta_empleadores
     ADD COLUMN IF NOT EXISTS hoja_origen TEXT,
     ADD COLUMN IF NOT EXISTS respuesta_origen_id TEXT,
     ADD COLUMN IF NOT EXISTS instrumento_origen TEXT,
-    ADD COLUMN IF NOT EXISTS version_mapeo INTEGER;
+    ADD COLUMN IF NOT EXISTS version_mapeo INTEGER,
+    ADD COLUMN IF NOT EXISTS fila_origen INTEGER,
+    ADD COLUMN IF NOT EXISTS version_instrumento TEXT,
+    ADD COLUMN IF NOT EXISTS raw_data JSONB,
+    ADD COLUMN IF NOT EXISTS respuestas_originales JSONB,
+    ADD COLUMN IF NOT EXISTS codigos_ordinales JSONB,
+    ADD COLUMN IF NOT EXISTS selecciones_multiples JSONB,
+    ADD COLUMN IF NOT EXISTS calidad_datos JSONB;
 -- Indices completos (no parciales): compatibles con ON CONFLICT desde PostgREST.
 -- PostgreSQL permite varias filas con NULL, conservando todos los historicos.
 CREATE UNIQUE INDEX IF NOT EXISTS titulados_respuesta_hash_uidx
@@ -44,9 +66,25 @@ END $$;
 COMMENT ON COLUMN public.encuesta_titulados.anio_egreso IS
     'Solo ano explicitamente declarado. Nunca se deduce de anos de vida profesional.';
 COMMENT ON COLUMN public.encuesta_titulados.respuesta_hash IS
-    'SHA256 de la respuesta original canonica, sin puntuaciones ni comentarios auxiliares. Evita duplicados exactos, no identifica personas.';
+    'Cargas nuevas: SHA256 del identificador de envio/origen o de archivo/hoja/fila. Sin origen, clave aleatoria. No deduplicar por contenido; las huellas historicas no se reinterpretan.';
 COMMENT ON COLUMN public.encuesta_empleadores.respuesta_hash IS
-    'SHA256 de la respuesta original canonica; no usar empresa ni correo como identificador unico.';
+    'Cargas nuevas: SHA256 del identificador de envio/origen o de archivo/hoja/fila. Sin origen, clave aleatoria. No usar respuestas, empresa ni correo como identidad. Historicos conservados.';
 -- No se agregan permisos nuevos. La carga necesita SELECT e INSERT autorizados.
 COMMIT;
 NOTIFY pgrst, 'reload schema';
+
+-- Debe mostrar dos filas con carga_preparada = true. Solo consulta metadatos.
+SELECT t.tabla,
+       NOT EXISTS (
+           SELECT 1 FROM unnest(ARRAY['respuesta_hash','respuesta_origen_id',
+               'instrumento_origen','archivo_sha256','archivo_nombre','hoja_origen',
+               'fila_origen','version_mapeo','version_instrumento','raw_data',
+               'respuestas_originales','codigos_ordinales','selecciones_multiples',
+               'calidad_datos']) AS requerida(columna)
+           WHERE NOT EXISTS (
+               SELECT 1 FROM information_schema.columns c
+               WHERE c.table_schema = 'public' AND c.table_name = t.tabla
+                 AND c.column_name = requerida.columna
+           )
+       ) AS carga_preparada
+FROM (VALUES ('encuesta_titulados'), ('encuesta_empleadores')) AS t(tabla);

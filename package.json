@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "node --test scripts/probar_carga_hu1.cjs"
+    "test": "node --test scripts/probar_carga_hu1.cjs scripts/probar_arcusur.cjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",
