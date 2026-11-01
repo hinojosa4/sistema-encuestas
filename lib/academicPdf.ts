@@ -1,5 +1,5 @@
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from 'pdf-lib';
-import { buildAcademicReport, UMSS_COLORS, type AcademicBlock, type AcademicMetadata } from './academicReport';
+import { buildAcademicReport, UMSS_COLORS, type AcademicBlock } from './academicReport';
 import type { AnalysisReport } from './reports';
 
 const W = 595.28, H = 841.89, M = 56, CW = W - M * 2, BOTTOM = 72;
@@ -7,7 +7,7 @@ const hex = (value: string) => rgb(...[1,3,5].map(i=>parseInt(value.slice(i,i+2)
 const BLUE = hex(UMSS_COLORS.azul), RED = hex(UMSS_COLORS.rojo), INK = rgb(.08,.1,.14), GRAY = rgb(.31,.35,.4), LIGHT = rgb(.9,.933,.969), LINE = rgb(.82,.84,.87);
 const fmt = (v: number, digits = 1) => v.toLocaleString('es-BO',{maximumFractionDigits:digits});
 
-export async function academicReportToPdf(report: AnalysisReport, metadata: Partial<AcademicMetadata> = {}, logo?: Uint8Array): Promise<Uint8Array> {
+export async function academicReportToPdf(report: AnalysisReport, logo?: Uint8Array): Promise<Uint8Array> {
     const document = await PDFDocument.create();
     const normal = await document.embedFont(StandardFonts.Helvetica);
     const bold = await document.embedFont(StandardFonts.HelveticaBold);
@@ -62,14 +62,8 @@ export async function academicReportToPdf(report: AnalysisReport, metadata: Part
     cy-=10;
     for(const line of wrap(model.subtitulo,CW-10,12)){center(cover,line,cy,12);cy-=18;}
     center(cover,'Taller de Simulación',cy-36,12,bold);
-    cy=Math.min(cy-85,310);
-    for(const line of wrap(`Autoría: ${String(metadata.autores ?? '').trim().slice(0,240) || 'Por completar por el equipo'}`,CW,11)){center(cover,line,cy,11);cy-=16;}
-    cy-=10;
-    for(const line of wrap(`Docente: ${String(metadata.docente ?? '').trim().slice(0,120) || 'Por completar'}`,CW,11)){center(cover,line,cy,11);cy-=16;}
-    cy-=25;
-    for(const line of wrap(`Gestión o periodo: ${String(metadata.periodo ?? '').trim().slice(0,80) || 'Por completar'}`,CW,11)){center(cover,line,cy,11);cy-=16;}
     center(cover,'Cochabamba Bolivia',140,11);
-    center(cover,new Date(report.generadoUTC).toLocaleDateString('es-BO',{timeZone:'America/La_Paz',day:'numeric',month:'long',year:'numeric'}),121,11);
+    center(cover,`Fecha de generación: ${new Date(report.generadoUTC).toLocaleDateString('es-BO',{timeZone:'America/La_Paz',day:'numeric',month:'long',year:'numeric'})}`,121,11);
     center(cover,'Versión para revisión académica',92,10,bold,RED);
 
     const contents: {title:string; page:number}[] = [];
@@ -171,7 +165,7 @@ export async function academicReportToPdf(report: AnalysisReport, metadata: Part
         put(p,`${index+1} / ${pages.length}`,W-M-45,36,8,normal,GRAY);
     });
     document.setTitle(model.titulo);document.setSubject('Análisis académico de mercado a partir de encuestas');
-    document.setAuthor(String(metadata.autores ?? '').trim().slice(0,240) || 'Autoría no consignada');
+    document.setAuthor('Sistema de Encuestas UMSS');
     document.setCreator('Sistema de Encuestas UMSS');document.setKeywords(['UMSS','empleabilidad','posgrado','competencias','análisis de mercado']);
     document.setCreationDate(new Date(report.generadoUTC));
     // Used only for metadata, not as an assertion that a simulation was performed.

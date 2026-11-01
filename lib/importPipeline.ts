@@ -281,7 +281,11 @@ export async function sha256(text: string | ArrayBuffer) {
     return Array.from(new Uint8Array(digest), b => b.toString(16).padStart(2, '0')).join('');
 }
 export function canonicalResponse(raw: Row) {
-    const entries = Object.entries(raw).filter(([h]) => !/^(puntos|comentarios|total de puntos)\b/.test(normalizarTexto(h)))
+    const entries = Object.entries(raw).filter(([h]) => {
+        const header = normalizarTexto(h);
+        return !/^(puntos|comentarios|total de puntos)\b/.test(header) &&
+            !header.includes('marca temporal') && !header.includes('correo electronico');
+    })
         .map(([h, v]) => [cleanString(h), typeof v === 'object' && v !== null ? JSON.stringify(v) : cleanString(v)] as const)
         .sort(([a], [b]) => a.localeCompare(b, 'es'));
     return JSON.stringify(entries);
@@ -293,7 +297,8 @@ export function sourceRecordKey(row: Row, type: SurveyType): string | null {
     const instrument = cleanString(row.instrumento_origen);
     const raw = row.raw_data && typeof row.raw_data === 'object' && !Array.isArray(row.raw_data) ? row.raw_data as Row : {};
     const id = cleanString(row.respuesta_origen_id ?? (type === 'encuesta_titulados'
-        ? Object.entries(raw).find(([header]) => normalizarTexto(header) === 'id')?.[1] : null));
+        ? Object.entries(raw).find(([header]) => normalizarTexto(header) === 'id')?.[1]
+        : Object.entries(raw).find(([header]) => normalizarTexto(header).includes('correo electronico'))?.[1]));
     if (instrument && id) return JSON.stringify(['envio-v2', type, instrument, id]);
     if (typeof row.archivo_sha256 === 'string' && /^[a-f0-9]{64}$/.test(row.archivo_sha256) &&
         !empty(row.hoja_origen) && Number.isInteger(row.fila_origen) && Number(row.fila_origen) >= 2) {

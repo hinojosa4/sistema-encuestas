@@ -27,7 +27,7 @@ export default function UploadScreen() {
     const result = useMemo(() => inspectRows(rows, target), [rows, target]);
     const hasWarnings = result.issues.length > 0 || result.unknownHeaders.length > 0;
     const canSave = result.rows.length > 0 && result.errors.length === 0;
-    const reset = () => { generation.current++; setRows([]); setWorkbook(null); setSource({ name: '', hash: '' }); setSheetName(''); setMessage(null); };
+    const reset = (clearMessage = true) => { generation.current++; setRows([]); setWorkbook(null); setSource({ name: '', hash: '' }); setSheetName(''); if (clearMessage) setMessage(null); };
 
     const openFile = async (file: File) => {
         reset();
@@ -68,7 +68,7 @@ export default function UploadScreen() {
             const { inserted: count } = await savePreparedRows(supabase, target, payload);
             setMessage({ error: false, text: count == null ? 'La carga se completó y los registros anteriores se conservaron.' :
                 `${count} respuestas nuevas guardadas; ${payload.length - count} ya existentes omitidas. Los registros anteriores se conservaron.` });
-            setRows([]);
+            reset(false);
         } catch (error) { setMessage({ error: true, text: databaseMessage(error) }); }
         finally { setLoading(false); }
     };

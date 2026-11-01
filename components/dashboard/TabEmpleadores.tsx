@@ -82,7 +82,7 @@ function CurricularGapSynthesis({ summary: s }: { summary: CompetencySummary }) 
         <article className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-sm space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-100 gap-2">
                 <div>
-                    <h3 className="font-bold text-slate-900 text-lg">Diagnóstico de Brechas Formativas para la Malla Curricular (HU4)</h3>
+                    <h3 className="font-bold text-slate-900 text-lg">Diagnóstico de brechas formativas para la malla curricular</h3>
                     <p className="text-xs text-slate-500">
                         Síntesis comparativa entre competencias técnicas y transversales adquiridas frente a las demandas del mercado laboral.
                     </p>
@@ -287,20 +287,8 @@ export function TabEmpleadores({ summary: s, onScope, empleadores = [] }: { summ
         { id: 'empleadores', label: 'Percepción y competencias' },
     ] as const;
     const satisfaction = s.titulados[0];
-    return <section className="space-y-6" aria-labelledby="hu4-title">
-        {/* Banner institucional de alcance metodológico de la HU4 */}
-        <div className="rounded-xl border border-blue-200 bg-blue-50/80 p-4 text-xs leading-relaxed text-slate-700 shadow-sm">
-            <div className="flex items-center gap-1.5 font-bold uppercase tracking-wide text-umss-azul mb-1">
-                <span>Historia de Usuario 4 · Evaluación de Brechas en Competencias Profesionales</span>
-            </div>
-            <p>
-                <strong>Población analizada:</strong> Titulados con experiencia laboral demostrada en el mercado ({s.conExperiencia} de {s.totalTitulados} respuestas). 
-                <br />
-                <strong>Escalas de medición nativas:</strong> El cuestionario oficial empleó escalas Likert de 4 puntos (1–4) para titulados y 3 puntos (1–3) para empleadores. Las medias, medianas y desviaciones estándar se calculan sobre las escalas originales para preservar la fidelidad estadística requerida por los pares evaluadores de ARCUSUR.
-            </p>
-        </div>
-
-        <header><p className="text-xs font-semibold uppercase tracking-widest text-umss-azul">Formación y competencias</p><h2 id="hu4-title" className="mt-2 text-2xl font-bold tracking-tight text-slate-900">¿Qué formación aporta y qué conviene mejorar?</h2><p className="mt-2 text-sm leading-relaxed text-slate-600">Diagnóstico de percepciones de titulados y empleadores. Las dos perspectivas se presentan por separado y conservan sus escalas originales.</p></header>
+    return <section className="space-y-6" aria-labelledby="competencias-title">
+        <header><p className="text-xs font-semibold uppercase tracking-widest text-umss-azul">Formación y competencias</p><h2 id="competencias-title" className="mt-2 text-2xl font-bold tracking-tight text-slate-900">¿Qué formación aporta y qué conviene mejorar?</h2><p className="mt-2 text-sm leading-relaxed text-slate-600">Diagnóstico de percepciones de titulados y empleadores. Las dos perspectivas se presentan por separado y conservan sus escalas originales.</p></header>
         <div className="grid gap-4 sm:grid-cols-3">
             <Indicator label="Titulados en este análisis" value={s.tituladosAnalizados} detail={<>De {s.totalTitulados} respuestas; {s.conExperiencia} declaran experiencia laboral.</>} />
             <Indicator label="Satisfacción con la formación" value={scoreLabel(satisfaction.media)} unit="de 4" detail={<>{satisfaction.validas} respuestas válidas. Desviación muestral: {scoreLabel(satisfaction.desviacion)}. Es un índice de acuerdo.</>} />
