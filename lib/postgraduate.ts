@@ -33,12 +33,27 @@ export function resumirFormacion(rows: Row[]) {
         .map(r => normalizarNivelPosgrado(r.nivel_posgrado_cursado)).filter((v): v is string => v !== null);
     const sinInteres = rows.filter(r => normalizarTexto(r.interes_futuro_posgrado) === 'no').length;
     const conArea = areas.reduce((n, r) => n + r.cantidad, 0);
+
+    // Lugares cursados (Tabla 8 del informe, n=98) y preferidos (Tabla 10 del informe, n=123)
+    const lugaresCursados = sortedFrequency(
+        rows.filter(r => yes(r.ha_realizado_posgrado))
+            .map(r => String(r.institucion_posgrado_cursado ?? '').trim())
+            .filter(Boolean)
+    );
+    const lugaresPreferidos = sortedFrequency(
+        interested
+            .map(r => String(r.institucion_optaria_posgrado ?? '').trim())
+            .filter(Boolean)
+    );
+
     return {
         total: rows.length, interesados: interested.length, sinInteres,
         interesNoUtilizable: rows.length - interested.length - sinInteres,
         areas, niveles: sortedFrequency(levelsDone), concentracion: calcularConcentracion(areas),
         sinArea: interested.length - conArea,
         areasFueraRuta: rows.filter(r => !yes(r.interes_futuro_posgrado) && String(r.area_interes_posgrado ?? '').trim()).length,
+        lugaresCursados,
+        lugaresPreferidos,
     };
 }
 export type FormationSummary = ReturnType<typeof resumirFormacion>;

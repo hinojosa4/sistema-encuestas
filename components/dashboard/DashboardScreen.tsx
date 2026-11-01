@@ -36,8 +36,8 @@ export default function DashboardScreen() {
     const [titulados, setTitulados] = useState<Row[]>([]);
     const [empleadores, setEmpleadores] = useState<Row[]>([]);
     const [errorMessage, setErrorMessage] = useState('');
-    const [limiteExperiencia, setLimiteExperiencia] = useState(3);
-    const [competencyScope, setCompetencyScope] = useState<GraduateScope>('experiencia');
+    const [limiteExperiencia, setLimiteExperiencia] = useState(5);
+    const [competencyScope, setCompetencyScope] = useState<GraduateScope>('todos');
     const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState<AnalysisSection>('titulados');
     const [exportMenuOpen, setExportMenuOpen] = useState(false);
@@ -240,7 +240,7 @@ export default function DashboardScreen() {
                     <TabTitulados summary={formacion} />
                 )}
                 {activeTab === 'empleadores' && (
-                    <><TabEmpleadores summary={competencias} onScope={setCompetencyScope} /><div className="mt-6"><EmergingAreasPanel rows={empleadores} onChange={setEmpleadores} /></div></>
+                    <><TabEmpleadores summary={competencias} onScope={setCompetencyScope} empleadores={empleadores} /><div className="mt-6"><EmergingAreasPanel rows={empleadores} onChange={setEmpleadores} /></div></>
                 )}
                 {activeTab === 'estadistica' && (
                     <div className="space-y-8">
