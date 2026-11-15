@@ -1,17 +1,20 @@
 'use client';
 import type { EmployabilitySummary } from '@/lib/employability';
+import type { EmployabilityRelation, MultivariateProfile } from '@/lib/employabilityAnalysis';
 import { employmentIntervals } from '@/lib/importPipeline';
 import { Distribution, Indicator, numberLabel, percentLabel } from './AnalyticsUI';
+import { EmployabilityRelations } from './EmployabilityRelations';
 
-export function HU1Overview({ summary: s, limite, onLimite }: {
+export function HU1Overview({ summary: s, limite, onLimite, relations = [], profiles = [] }: {
     summary: EmployabilitySummary; limite: number; onLimite: (value: number) => void;
+    relations?: EmployabilityRelation[]; profiles?: MultivariateProfile[];
 }) {
     const plazos = [...s.plazos].sort((a, b) => employmentIntervals.indexOf(a.nombre) - employmentIntervals.indexOf(b.nombre));
     const edadTotal = s.edad.reduce((n, r) => n + r.cantidad, 0);
     const generoTotal = s.genero.reduce((n, r) => n + r.cantidad, 0);
     const remTotal = s.remuneracion.reduce((n, r) => n + r.cantidad, 0);
 
-    return <section className="space-y-6" aria-labelledby="hu1-title">
+    return <section className="space-y-6 [&>details]:hidden" aria-labelledby="hu1-title">
         <header>
             <p className="text-xs font-semibold uppercase tracking-widest text-umss-azul">Perfil profesional</p>
             <h2 id="hu1-title" className="mt-2 text-2xl font-bold tracking-tight text-slate-900">Experiencia y empleabilidad</h2>
@@ -93,5 +96,6 @@ export function HU1Overview({ summary: s, limite, onLimite }: {
             <article className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6"><h3 className="font-semibold text-slate-900">Ocupación actual por cohorte de egreso</h3><p className="mt-2 text-xs leading-relaxed text-slate-600">Compara a quienes respondieron; no mide inserción dentro de un plazo ni seguimiento longitudinal. Las cohortes pequeñas requieren cautela.</p><div className="mt-4 overflow-x-auto"><table className="w-full text-left text-sm"><caption className="sr-only">Ocupación por año de egreso con bases y exclusiones</caption><thead className="border-b border-slate-200 text-slate-600"><tr>{['Egreso','Ocupados','Estado válido','Sin estado válido','Ocupación'].map(h=><th key={h} scope="col" className="p-3">{h}</th>)}</tr></thead><tbody className="divide-y divide-slate-100">{s.ocupacionPorCohorte.map(r=><tr key={r.anio}><th scope="row" className="p-3 font-medium">{r.anio}</th><td className="p-3">{r.ocupados}</td><td className="p-3">{r.base}</td><td className="p-3">{r.excluidos}</td><td className="p-3 font-semibold">{percentLabel(r.porcentaje)}</td></tr>)}</tbody></table></div></article>
         </section>}
         <details className="rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-600"><summary className="cursor-pointer font-medium text-slate-800">Metodología y disponibilidad de los datos</summary><div className="mt-3 space-y-2 leading-relaxed">{!s.cohortes.length && <p><strong>Año de egreso:</strong> las {s.egreso.excluidos} respuestas no aportan un año válido. Se muestra experiencia profesional; al incorporar años explícitos válidos aparecerán los indicadores de antigüedad y ocupación por cohorte.</p>}<p>Las bases cambian según las respuestas válidas de cada pregunta. Los datos ausentes o ambiguos se excluyen; el valor cero sí se conserva.</p><p>La ocupación es una proporción de la muestra. El primer empleo temprano incluye las categorías «Ya trabajaba antes de titularse», «Menos de 1 mes» y «Entre 1–4 meses».</p><p>La media resume el promedio; la mediana ubica el centro de la muestra y la desviación estándar describe su dispersión.</p></div></details>
+        {relations.length > 0 && profiles.length > 0 && <EmployabilityRelations relations={relations} profiles={profiles} />}
     </section>;
 }

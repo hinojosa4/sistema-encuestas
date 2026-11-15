@@ -9,7 +9,7 @@ export type Quality = { estado: string; detalle?: string };
 export type PreparedRow = Row & { raw_data: Row; respuestas_originales: Row; calidad_datos: Record<string, Quality> };
 export type Issue = { fila: number; campo: string; mensaje: string };
 export const MAX_ROWS = 10000;
-export const MAPPING_VERSION = 3;
+export const MAPPING_VERSION = 5;
 
 export const employerScales = [
     'confianza_carrera_formadora', 'consistencia_titulo_competencias', 'consulta_regular_opinion',
@@ -24,10 +24,70 @@ export const graduateScales: Record<string, Escala> = {
     satisfaccion_global_carrera: 'acuerdo', concordancia_formacion_requerimientos: 'acuerdo',
     satisfaccion_negocio: 'satisfaccion', importancia_formacion_negocio: 'importancia',
 };
-const multiFields = ['aspectos_utilidad', 'aspectos_mejora', 'asignaturas_ventaja_competitiva', 'asignaturas_menos_utiles', 'cargos_desempenados'];
+const multiFields = ['aspectos_utilidad', 'aspectos_mejora', 'asignaturas_ventaja_competitiva', 'asignaturas_menos_utiles', 'cargos_desempenados', 'area_empresa_trabajo'];
 const yesNoFields = ['ha_realizado_posgrado', 'interes_futuro_posgrado', 'ha_trabajado_antes', 'es_primer_empleo', 'interes_red_contactos', 'ha_contratado_sistemas'];
 export const empty = (value: unknown) => value === null || value === undefined || String(value).trim() === '';
 export const cleanString = (value: unknown) => String(value ?? '').normalize('NFC').replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
+
+const employerCategoricalFields = new Set([
+    'nombre_empresa', 'tipo_organizacion', 'tamano_organizacion', 'rubro_sector',
+    'ha_contratado_sistemas', 'probabilidad_incorporacion_futura', 'nivel_formacion_demandado',
+    'medio_convocatoria', 'cargos_desempenados',
+]);
+
+const graduateCategoricalFields = new Set([
+    'edad', 'genero', 'ha_realizado_posgrado', 'nivel_posgrado_cursado',
+    'institucion_posgrado_cursado', 'financiamiento_posgrado_cursado', 'interes_futuro_posgrado',
+    'area_interes_posgrado', 'institucion_optaria_posgrado', 'empresa_trabajo_actual',
+    'rubro_empresa_trabajo', 'sector_empresa_trabajo', 'departamento_trabajo', 'area_empresa_trabajo',
+    'cargo_actual', 'antiguedad_trabajo_actual', 'medio_obtencion_trabajo', 'remuneracion_mensual',
+    'origen_emprendimiento', 'tipo_entregable_negocio', 'financiamiento_negocio', 'es_primer_empleo',
+    'ha_trabajado_antes', 'cantidad_empleos_desempenados', 'interes_red_contactos',
+]);
+
+function isPlaceholder(value: unknown) {
+    return ['-', '.', 'n a', 'na', 'ninguno', 'ninguna', 'prefiero no responder'].includes(normalizarTexto(value));
+}
+
+export function normalizeGraduateField(field: string, value: unknown): unknown {
+    if (empty(value) || isPlaceholder(value)) return null;
+    if (!graduateCategoricalFields.has(field)) return typeof value === 'string' ? cleanString(value) : value;
+    const cleaned = cleanString(value);
+    return cleaned.toLocaleUpperCase('es-BO');
+}
+
+export function normalizeEmployerSize(value: unknown): string | null {
+    const normalized = normalizarTexto(value);
+    if (!normalized) return null;
+    if (normalized.includes('micro')) return 'MICRO';
+    if (normalized.includes('pequ') || normalized.includes('small')) return 'PEQUEÑA';
+    if (normalized.includes('median')) return 'MEDIANA';
+    if (normalized.includes('grand') || normalized.includes('large')) return 'GRANDE';
+    return 'NO CLASIFICABLE';
+}
+
+export function normalizeEmployerSector(value: unknown): string | null {
+    const normalized = normalizarTexto(value);
+    if (!normalized) return null;
+    if (/telecom|internet|telefon/.test(normalized)) return 'TELECOMUNICACIONES';
+    if (/software|tecnolog|sistemas|informat|comput|digital/.test(normalized)) return 'TECNOLOGÍA';
+    if (/banc|financ|seguro|cooperativ/.test(normalized)) return 'FINANZAS Y SEGUROS';
+    if (/public|gobierno|municip|estatal/.test(normalized)) return 'SECTOR PÚBLICO';
+    if (/educ|univers|coleg/.test(normalized)) return 'EDUCACIÓN';
+    if (/salud|hospital|clinica|medic/.test(normalized)) return 'SALUD';
+    if (/comerc|venta|retail|distrib/.test(normalized)) return 'COMERCIO';
+    if (/industr|manufact|fabrica|produccion/.test(normalized)) return 'INDUSTRIA';
+    if (/ong|fundacion|asociacion|sin fines/.test(normalized)) return 'ORGANIZACIÓN SOCIAL';
+    return 'OTROS';
+}
+
+export function normalizeEmployerField(field: string, value: unknown): unknown {
+    if (empty(value)) return null;
+    if (field === 'tamano_organizacion') return normalizeEmployerSize(value);
+    if (field === 'rubro_sector') return normalizeEmployerSector(value);
+    if (employerCategoricalFields.has(field)) return cleanString(value).toLocaleUpperCase('es-BO');
+    return typeof value === 'string' ? cleanString(value) : value;
+}
 
 export function parseDuration(value: unknown, kind: 'experiencia' | 'desempleo', policy: UnitPolicy = 'sin_definir') {
     const text = normalizarTexto(cleanString(value).replace(',', '.'));
@@ -73,6 +133,12 @@ export function normalizarPlazo(value: unknown): string | null {
 export function splitSelections(value: unknown): string[] {
     if (Array.isArray(value)) return [...new Set(value.map(cleanString).filter(Boolean))];
     const text = cleanString(value);
+    if (text.startsWith('[') && text.endsWith(']')) {
+        try {
+            const parsed = JSON.parse(text);
+            if (Array.isArray(parsed)) return [...new Set(parsed.map(cleanString).filter(Boolean))];
+        } catch { /* El formulario puede traer texto parecido a JSON. */ }
+    }
     let depth = 0, current = '';
     const result: string[] = [];
     for (const char of text) {
@@ -119,7 +185,9 @@ export function prepareRow(raw: Row, type: SurveyType, unit: UnitPolicy = 'sin_d
     for (const [field, value] of Object.entries(row)) {
         if (field === 'raw_data') continue;
         const original = originals[field] ?? value;
-        row[field] = empty(value) ? null : typeof value === 'string' ? cleanString(value) : value;
+        row[field] = type === 'encuesta_empleadores'
+            ? normalizeEmployerField(field, value)
+            : empty(value) ? null : typeof value === 'string' ? cleanString(value) : value;
         quality[field] = { estado: empty(original) ? 'sin_respuesta' : 'respondida' };
         if (field in scales) {
             row[field] = parseLikertValue(original, scales[field]);
@@ -127,7 +195,9 @@ export function prepareRow(raw: Row, type: SurveyType, unit: UnitPolicy = 'sin_d
             quality[field] = { estado: empty(original) ? 'sin_respuesta' : normalizarTexto(original) === 'no sabe' ? 'no_sabe' : row[field] === null ? 'invalida' : 'respondida' };
         }
         if (multiFields.includes(field)) {
-            selections[field] = splitSelections(original);
+            selections[field] = splitSelections(original).map(selection => type === 'encuesta_empleadores'
+                ? cleanString(selection).toLocaleUpperCase('es-BO')
+                : field === 'area_empresa_trabajo' ? cleanString(selection).toLocaleUpperCase('es-BO') : selection);
             row[field] = (selections[field] as string[]).join('; ') || null;
         }
         if (yesNoFields.includes(field) && !empty(original)) {
@@ -197,6 +267,11 @@ export function prepareRow(raw: Row, type: SurveyType, unit: UnitPolicy = 'sin_d
                 const year = Number(value);
                 row.anio_egreso = Number.isInteger(year) && year >= 1900 && year <= new Date().getFullYear() ? year : null;
                 quality.anio_egreso = { estado: empty(value) ? 'sin_respuesta' : row.anio_egreso === null ? 'invalida' : 'respondida' };
+            }
+        }
+        for (const field of graduateCategoricalFields) {
+            if (field in row && !['situacion_laboral_actual', 'sector_empresa_trabajo', 'tiempo_conseguir_primer_empleo'].includes(field)) {
+                row[field] = normalizeGraduateField(field, row[field]);
             }
         }
     } else {

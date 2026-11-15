@@ -6,6 +6,8 @@ import { themeRules } from '@/lib/competencies';
 import { Distribution, Indicator, percentLabel } from './AnalyticsUI';
 import { calcularDistribucionFrecuencias } from '@/lib/statistics';
 import type { Row } from '@/lib/importPipeline';
+import type { ReportProfile } from '@/lib/reportMultivariate';
+import { ReportMultivariateProfiles } from './ReportMultivariateProfiles';
 
 const scoreLabel = (value: number | null) => value === null ? '—' : value.toLocaleString('es-BO', { maximumFractionDigits: 2 });
 
@@ -278,7 +280,7 @@ function EmployerOrganizationsProfile({ rows }: { rows: Row[] }) {
     );
 }
 
-export function TabEmpleadores({ summary: s, onScope, empleadores = [] }: { summary: CompetencySummary; onScope: (scope: GraduateScope) => void; empleadores?: Row[] }) {
+export function TabEmpleadores({ summary: s, onScope, empleadores = [], reportProfiles = [] }: { summary: CompetencySummary; onScope: (scope: GraduateScope) => void; empleadores?: Row[]; reportProfiles?: ReportProfile[] }) {
     const [section, setSection] = useState<'titulados' | 'mejoras' | 'organizaciones' | 'empleadores'>('titulados');
     const sections = [
         { id: 'titulados', label: 'Formación y trabajo' },
@@ -287,7 +289,7 @@ export function TabEmpleadores({ summary: s, onScope, empleadores = [] }: { summ
         { id: 'empleadores', label: 'Percepción y competencias' },
     ] as const;
     const satisfaction = s.titulados[0];
-    return <section className="space-y-6" aria-labelledby="competencias-title">
+    return <section className="space-y-6 [&>details]:hidden" aria-labelledby="competencias-title">
         <header><p className="text-xs font-semibold uppercase tracking-widest text-umss-azul">Formación y competencias</p><h2 id="competencias-title" className="mt-2 text-2xl font-bold tracking-tight text-slate-900">¿Qué formación aporta y qué conviene mejorar?</h2><p className="mt-2 text-sm leading-relaxed text-slate-600">Diagnóstico de percepciones de titulados y empleadores. Las dos perspectivas se presentan por separado y conservan sus escalas originales.</p></header>
         <div className="grid gap-4 sm:grid-cols-3">
             <Indicator label="Titulados en este análisis" value={s.tituladosAnalizados} detail={<>De {s.totalTitulados} respuestas; {s.conExperiencia} declaran experiencia laboral.</>} />
@@ -305,7 +307,7 @@ export function TabEmpleadores({ summary: s, onScope, empleadores = [] }: { summ
         <nav className="flex flex-wrap gap-2" aria-label="Perspectivas de formación y competencias">{sections.map(item => <button key={item.id} type="button" aria-pressed={section === item.id} onClick={() => setSection(item.id)} className={`rounded-lg border px-4 py-3 text-sm font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-700 ${section === item.id ? 'border-teal-800 bg-teal-800 text-white' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'}`}>{item.label}</button>)}</nav>
         {section === 'titulados' && <RatingPanel items={s.titulados} title="Valoración de la formación desde los titulados" />}
         {section === 'mejoras' && <MultiplePanel items={s.mejoras} />}
-        {section === 'organizaciones' && <EmployerOrganizationsProfile rows={empleadores} />}
+        {section === 'organizaciones' && <><EmployerOrganizationsProfile rows={empleadores} /><ReportMultivariateProfiles profiles={reportProfiles} title="Perfil de demanda laboral del informe" /></>}
         {section === 'empleadores' && <div className="space-y-6">
             <RatingPanel items={s.perfilEmpleadores} title="Percepción del perfil y desempeño profesional" />
             <MultiplePanel items={s.demanda} thematic />

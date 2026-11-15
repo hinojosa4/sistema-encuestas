@@ -5,7 +5,7 @@ import { Distribution, Indicator, percentLabel } from './AnalyticsUI';
 export function TabChiCuadrada({ summary: s }: { summary: FinancingSummary }) {
     const leader = s.distribucion[0];
 
-    return <section className="space-y-6" aria-labelledby="financiamiento-title">
+    return <section className="space-y-6 [&>details]:hidden [&>article]:hidden" aria-labelledby="financiamiento-title">
         <header>
             <p className="text-xs font-semibold uppercase tracking-widest text-umss-azul">Financiamiento</p>
             <h2 id="financiamiento-title" className="mt-2 text-2xl font-bold tracking-tight text-slate-900">¿Cómo financiaron su posgrado?</h2>
