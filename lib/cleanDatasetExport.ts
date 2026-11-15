@@ -1,5 +1,6 @@
 import * as XLSX from 'xlsx';
-import { safeSpreadsheetValue, type Row } from './importPipeline';
+import { normalizarTexto } from './dataMappers';
+import { normalizeEmployerField, normalizeEmployerSector, normalizeEmployerSize, safeSpreadsheetValue, type Row } from './importPipeline';
 
 export const EXCLUDED_INTERNAL_KEYS = new Set([
     'raw_data',
@@ -30,9 +31,58 @@ export const EXCLUDED_INTERNAL_KEYS = new Set([
     'respuesta_origen_id',
 ]);
 
+const EMPLOYER_CATEGORICAL_FIELDS = new Set([
+    'nombre_empresa',
+    'tipo_organizacion',
+    'tamano_organizacion',
+    'rubro_sector',
+    'ha_contratado_sistemas',
+    'probabilidad_incorporacion_futura',
+    'nivel_formacion_demandado',
+    'medio_convocatoria',
+    'cargos_desempenados',
+]);
+
+const cleanEmployerLabel = (value: unknown) => {
+    const text = String(value ?? '').replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
+    return text ? text.toLocaleUpperCase('es-BO') : null;
+};
+
+function normalizeCompanyKey(value: unknown) {
+    const normalized = normalizarTexto(value);
+    return normalized ? normalized.toLocaleUpperCase('es-BO') : null;
+}
+
+function reportedEmployeeCount(value: unknown): number | null {
+    const text = String(value ?? '').replace(/\u00a0/g, ' ').trim();
+    const match = text.match(/\b\d+(?:[.,]\d+)?\b/);
+    if (!match) return null;
+    const count = Number(match[0].replace(',', '.'));
+    return Number.isFinite(count) && count >= 0 ? count : null;
+}
+
+function prepareEmployerExportRow(row: Row): Row {
+    if (!('nombre_empresa' in row) && !('tipo_organizacion' in row) && !('tamano_organizacion' in row)) return row;
+    const prepared = { ...row };
+    for (const field of EMPLOYER_CATEGORICAL_FIELDS) {
+        if (field in prepared && field !== 'nombre_empresa') prepared[field] = normalizeEmployerField(field, prepared[field]);
+    }
+    if ('nombre_empresa' in prepared) {
+        prepared.nombre_empresa = cleanEmployerLabel(prepared.nombre_empresa);
+        prepared.nombre_empresa_normalizado = normalizeCompanyKey(row.nombre_empresa);
+    }
+    if ('tamano_organizacion' in row) {
+        const originalSize = row.raw_data && typeof row.raw_data === 'object' ? (row.raw_data as Row).tamano_organizacion : row.tamano_organizacion;
+        prepared.tamano_organizacion = normalizeEmployerSize(row.tamano_organizacion);
+        prepared.numero_empleados_reportado = reportedEmployeeCount(originalSize);
+    }
+    if ('rubro_sector' in row) prepared.rubro_sector_categoria = normalizeEmployerSector(row.rubro_sector);
+    return prepared;
+}
+
 export function cleanRowForExport(row: Row): Record<string, unknown> {
     const result: Record<string, unknown> = {};
-    for (const [k, v] of Object.entries(row)) {
+    for (const [k, v] of Object.entries(prepareEmployerExportRow(row))) {
         if (EXCLUDED_INTERNAL_KEYS.has(k)) continue;
         result[k] = safeSpreadsheetValue(v);
     }

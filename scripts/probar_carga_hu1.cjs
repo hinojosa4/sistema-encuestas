@@ -424,12 +424,12 @@ test('nombre y rubro distintos, preguntas adicionales y las dos otras asignatura
   const index = graduates.rows.findIndex(r => r[h('BA')] && r[h('BD')]);
   const raw = graduates.rows[index];
   const row = p.prepareRow(raw, graduates.type);
-  assert.equal(row.empresa_trabajo_actual, p.cleanString(raw[h('BA')]));
-  assert.equal(row.rubro_empresa_trabajo, p.cleanString(raw[h('BD')]));
+  assert.equal(row.empresa_trabajo_actual, /prefiero no responder/i.test(String(raw[h('BA')] ?? '')) ? null : p.cleanString(raw[h('BA')]));
+  assert.equal(row.rubro_empresa_trabajo, p.cleanString(raw[h('BD')]).toLocaleUpperCase('es-BO'));
   for (const [col, field] of [['BS','otra_area_trabajo'],['BY','otro_cargo_actual'],['CG','antiguedad_trabajo_actual'],['CJ','medio_obtencion_trabajo'],['CM','remuneracion_mensual'],['EQ','otra_asignatura_ventaja'],['EW','otra_asignatura_menos_util']]) {
     assert.equal(row.respuestas_originales[field], raw[h(col)]);
   }
-  assert.equal(p.prepareRow({ nivel_formacion_demandado: 'Maestría' }, 'encuesta_empleadores').nivel_formacion_demandado, 'Maestría');
+  assert.equal(p.prepareRow({ nivel_formacion_demandado: 'Maestría' }, 'encuesta_empleadores').nivel_formacion_demandado, 'MAESTRÍA');
 });
 
 test('HU1: denominadores reales, cero incluido, experiencia distinta de año de egreso', () => {
