@@ -1,8 +1,12 @@
 'use client';
 import type { FormationSummary } from '@/lib/postgraduate';
+import type { FormationRelation } from '@/lib/formationAnalysis';
+import type { ReportProfile } from '@/lib/reportMultivariate';
 import { Distribution, Indicator, percentLabel } from './AnalyticsUI';
+import { FormationRelations } from './FormationRelations';
+import { ReportMultivariateProfiles } from './ReportMultivariateProfiles';
 
-export function TabTitulados({ summary: s }: { summary: FormationSummary }) {
+export function TabTitulados({ summary: s, relations, reportProfiles }: { summary: FormationSummary; relations: FormationRelation[]; reportProfiles: ReportProfile[] }) {
     const areas = s.areas;
     const levels = s.niveles;
     const concentration = s.concentracion;
@@ -11,7 +15,7 @@ export function TabTitulados({ summary: s }: { summary: FormationSummary }) {
     const lugaresCursadosTotal = s.lugaresCursados.reduce((n, r) => n + r.cantidad, 0);
     const lugaresPreferidosTotal = s.lugaresPreferidos.reduce((n, r) => n + r.cantidad, 0);
 
-    return <section className="space-y-6" aria-labelledby="hu2-title">
+    return <section className="space-y-6 [&>details]:hidden" aria-labelledby="hu2-title">
         <header>
             <p className="text-xs font-semibold uppercase tracking-widest text-umss-azul">Formación continua</p>
             <h2 id="hu2-title" className="mt-2 text-2xl font-bold tracking-tight text-slate-900">¿En qué quieren especializarse?</h2>
@@ -86,6 +90,9 @@ export function TabTitulados({ summary: s }: { summary: FormationSummary }) {
                 />
             </div>
         </div>
+
+        <FormationRelations relations={relations} />
+        <ReportMultivariateProfiles profiles={reportProfiles} title="Perfiles de formación del informe" />
 
         <details className="rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-600">
             <summary className="cursor-pointer font-medium text-slate-800">Cómo se calculan las preferencias</summary>

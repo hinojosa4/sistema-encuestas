@@ -15,16 +15,17 @@ import { TabChiCuadrada } from '@/components/dashboard/TabChiCuadrada';
 import { TabReports } from '@/components/dashboard/TabReports';
 import { HU1Overview } from '@/components/dashboard/HU1Overview';
 import { AnalysisNavigation, type AnalysisSection } from '@/components/dashboard/AnalysisNavigation';
-import { DataCoverage } from '@/components/dashboard/DataCoverage';
 import { EmptyAnalysis } from '@/components/dashboard/EmptyAnalysis';
 import { resumirEmpleabilidad } from '@/lib/employability';
 import { resumirCompetencias, exportCompetencies, type GraduateScope } from '@/lib/competencies';
 import { normalizeStored, safeSpreadsheetValue, type Row } from '@/lib/importPipeline';
 import { readAllRows, databaseMessage } from '@/lib/surveyRepository';
 import { buildCrossAnalyses } from '@/lib/crossAnalysis';
+import { buildEmployabilityProfiles, buildEmployabilityRelations } from '@/lib/employabilityAnalysis';
+import { buildFormationRelations } from '@/lib/formationAnalysis';
+import { buildEmployerReportProfiles, buildFormationReportProfiles } from '@/lib/reportMultivariate';
 import { CrossAnalyses } from './CrossAnalyses';
 import { EmergingAreasPanel } from './EmergingAreasPanel';
-import { VariableBases } from './VariableBases';
 import { QuickExportMenu } from './QuickExportMenu';
 
 async function loadSurveys() {
@@ -50,8 +51,13 @@ export default function DashboardScreen() {
     }, []);
 
     const hu1 = resumirEmpleabilidad(titulados, limiteExperiencia);
+    const employabilityRelations = useMemo(() => buildEmployabilityRelations(titulados, limiteExperiencia), [titulados, limiteExperiencia]);
+    const employabilityProfiles = useMemo(() => buildEmployabilityProfiles(titulados), [titulados]);
 
     const formacion = resumirFormacion(titulados);
+    const formationRelations = useMemo(() => buildFormationRelations(titulados), [titulados]);
+    const formationReportProfiles = useMemo(() => buildFormationReportProfiles(titulados), [titulados]);
+    const employerReportProfiles = useMemo(() => buildEmployerReportProfiles(empleadores), [empleadores]);
     const financiamiento = resumirFinanciamiento(titulados);
 
     const competencias = useMemo(() => resumirCompetencias(titulados, empleadores, competencyScope), [titulados, empleadores, competencyScope]);
@@ -63,6 +69,19 @@ export default function DashboardScreen() {
         const wb = XLSX.utils.book_new();
         const exportRows = (rows: Row[]) => rows.map(r => Object.fromEntries(Object.entries(r)
             .filter(([k]) => k !== 'raw_data').map(([k, v]) => [k, safeSpreadsheetValue(v)])));
+        const exportProfiles = (profiles: ReturnType<typeof buildFormationReportProfiles>) => profiles.flatMap(profile => profile.cells
+            .filter(cell => cell.count > 0)
+            .map(cell => ({
+                perfil: profile.title,
+                fila: cell.row,
+                columna: cell.column,
+                personas: cell.count,
+                porcentaje_fila: cell.percentOfRow,
+                medida: cell.average,
+                tipo_medida: profile.metricType === 'rate' ? 'proporcion_afirmativa' : 'promedio',
+                base_valida: profile.total,
+                excluidas: profile.excluded,
+            })));
         const wsTitulados = XLSX.utils.json_to_sheet(exportRows(titulados));
         XLSX.utils.book_append_sheet(wb, wsTitulados, 'Titulados');
         const wsEmpleadores = XLSX.utils.json_to_sheet(exportRows(empleadores));
@@ -74,6 +93,8 @@ export default function DashboardScreen() {
         XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(formacion.niveles), 'Niveles_Cursados');
         XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(financiamiento.distribucion), 'Fuentes');
         XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(filasCruceFinanciamiento(financiamiento)), 'Cruce');
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(exportProfiles(formationReportProfiles)), 'Perfiles_Formacion');
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(exportProfiles(employerReportProfiles)), 'Perfil_Empleadores');
         const chi = financiamiento.chi;
         XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet([
             { indicador: 'Alcance', valor: 'Nivel cursado y financiamiento utilizado; no intenciones futuras.' },
@@ -161,13 +182,14 @@ export default function DashboardScreen() {
             {!errorMessage && !sectionHasData && <EmptyAnalysis section={activeTab} />}
             {!errorMessage && sectionHasData && <>
                 {activeTab === 'titulados' && (
-                    <HU1Overview summary={hu1} limite={limiteExperiencia} onLimite={setLimiteExperiencia} />
+                    <HU1Overview summary={hu1} limite={limiteExperiencia} onLimite={setLimiteExperiencia}
+                        relations={employabilityRelations} profiles={employabilityProfiles} />
                 )}
                 {activeTab === 'formacion' && (
-                    <TabTitulados summary={formacion} />
+                    <TabTitulados summary={formacion} relations={formationRelations} reportProfiles={formationReportProfiles} />
                 )}
                 {activeTab === 'empleadores' && (
-                    <><TabEmpleadores summary={competencias} onScope={setCompetencyScope} empleadores={empleadores} /><div className="mt-6"><EmergingAreasPanel rows={empleadores} onChange={setEmpleadores} /></div></>
+                    <><TabEmpleadores summary={competencias} onScope={setCompetencyScope} empleadores={empleadores} reportProfiles={employerReportProfiles} /><div className="mt-6"><EmergingAreasPanel rows={empleadores} onChange={setEmpleadores} /></div></>
                 )}
                 {activeTab === 'estadistica' && (
                     <div className="space-y-8">
@@ -200,7 +222,6 @@ export default function DashboardScreen() {
                         onRawExport={exportarAExcel}
                     />
                 )}
-                <div className="mt-6 space-y-4"><VariableBases graduates={titulados} employers={empleadores} /><DataCoverage tieneEgreso={hu1.cohortes.length > 0} /></div>
             </>}
 
         </div>
