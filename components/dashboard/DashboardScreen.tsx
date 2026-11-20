@@ -3,8 +3,7 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
-import { resumirFormacion, resumirFinanciamiento, filasCruceFinanciamiento } from '@/lib/postgraduate';
-import * as XLSX from 'xlsx';
+import { resumirFormacion, resumirFinanciamiento } from '@/lib/postgraduate';
 import {
     BarChart3, RefreshCw, GraduationCap, Building2
 } from 'lucide-react';
@@ -18,8 +17,8 @@ import { HU1Overview } from '@/components/dashboard/HU1Overview';
 import { AnalysisNavigation, type AnalysisSection } from '@/components/dashboard/AnalysisNavigation';
 import { EmptyAnalysis } from '@/components/dashboard/EmptyAnalysis';
 import { resumirEmpleabilidad } from '@/lib/employability';
-import { resumirCompetencias, exportCompetencies, type GraduateScope } from '@/lib/competencies';
-import { normalizeStored, safeSpreadsheetValue, type Row } from '@/lib/importPipeline';
+import { resumirCompetencias, type GraduateScope } from '@/lib/competencies';
+import { normalizeStored, type Row } from '@/lib/importPipeline';
 import { readAllRows, databaseMessage } from '@/lib/surveyRepository';
 import { buildCrossAnalyses } from '@/lib/crossAnalysis';
 import { buildEmployabilityProfiles, buildEmployabilityRelations } from '@/lib/employabilityAnalysis';
@@ -64,69 +63,6 @@ export default function DashboardScreen() {
     const competencias = useMemo(() => resumirCompetencias(titulados, empleadores, competencyScope), [titulados, empleadores, competencyScope]);
     const sectionHasData = titulados.length > 0 ||
         ((activeTab === 'empleadores' || activeTab === 'reportes' || activeTab === 'perfiles') && empleadores.length > 0);
-
-    // HU 5: Exportación a Excel de vista legacy
-    const exportarAExcel = () => {
-        const wb = XLSX.utils.book_new();
-        const exportRows = (rows: Row[]) => rows.map(r => Object.fromEntries(Object.entries(r)
-            .filter(([k]) => k !== 'raw_data').map(([k, v]) => [k, safeSpreadsheetValue(v)])));
-        const exportProfiles = (profiles: ReturnType<typeof buildFormationReportProfiles>) => profiles.flatMap(profile => profile.cells
-            .filter(cell => cell.count > 0)
-            .map(cell => ({
-                perfil: profile.title,
-                fila: cell.row,
-                columna: cell.column,
-                personas: cell.count,
-                porcentaje_fila: cell.percentOfRow,
-                medida: cell.average,
-                tipo_medida: profile.metricType === 'rate' ? 'proporcion_afirmativa' : 'promedio',
-                base_valida: profile.total,
-                excluidas: profile.excluded,
-            })));
-        const wsTitulados = XLSX.utils.json_to_sheet(exportRows(titulados));
-        XLSX.utils.book_append_sheet(wb, wsTitulados, 'Titulados');
-        const wsEmpleadores = XLSX.utils.json_to_sheet(exportRows(empleadores));
-        XLSX.utils.book_append_sheet(wb, wsEmpleadores, 'Empleadores');
-        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(hu1.plazos), 'Plazos');
-        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(hu1.situaciones), 'Ocupacion');
-        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(hu1.experienciaGrupos), 'Experiencia');
-        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(exportRows(formacion.areas)), 'Areas');
-        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(formacion.niveles), 'Niveles_Cursados');
-        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(financiamiento.distribucion), 'Fuentes');
-        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(filasCruceFinanciamiento(financiamiento)), 'Cruce');
-        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(exportProfiles(formationReportProfiles)), 'Perfiles_Formacion');
-        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(exportProfiles(employerReportProfiles)), 'Perfil_Empleadores');
-        const chi = financiamiento.chi;
-        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet([
-            { indicador: 'Alcance', valor: 'Nivel cursado y financiamiento utilizado; no intenciones futuras.' },
-            { indicador: 'Base total de titulados', valor: titulados.length },
-            { indicador: 'interesados en posgrado', valor: formacion.interesados },
-            { indicador: 'interesados sin area', valor: formacion.sinArea },
-            { indicador: 'concentracion top 2 (%)', valor: formacion.concentracion.total ? formacion.concentracion.porcentaje : null },
-            { indicador: 'base de fuentes', valor: financiamiento.fuentesValidas },
-            { indicador: 'base del cruce', valor: chi.total },
-            { indicador: 'sin posgrado', valor: financiamiento.exclusiones.sinPosgrado },
-            { indicador: 'ruta no confirmada', valor: financiamiento.exclusiones.rutaNoConfirmada },
-            { indicador: 'pares incompletos', valor: financiamiento.exclusiones.incompletas },
-            { indicador: 'categorias no reconocidas', valor: financiamiento.exclusiones.noReconocidas },
-            { indicador: 'Estado del contraste', valor: chi.estado },
-            { indicador: 'Chi-cuadrada de Pearson', valor: chi.chi2 },
-            { indicador: 'Grados de libertad', valor: chi.gradosLibertad },
-            { indicador: 'p-valor asintotico (vacio si no interpretable)', valor: chi.pValor },
-            { indicador: 'Alfa', valor: chi.alfa },
-            { indicador: 'Esperadas menores de 5', valor: chi.celdasMenor5 },
-            { indicador: 'Minima esperada', valor: chi.minimaEsperada },
-            { indicador: 'Datos faltantes en el instrumento', valor: 'Anio de egreso, nivel deseado y fuente prevista para futuros estudios.' },
-            { indicador: 'Interpretacion', valor: chi.existeDependencia === null ? 'Sin conclusion inferencial; consultar estado y esperadas.' : chi.existeDependencia ? 'Evidencia de asociacion; no prueba causalidad.' : 'Sin evidencia suficiente de asociacion; no demuestra independencia.' },
-        ]), 'Metodologia_Posgrados');
-        const hu4 = exportCompetencies(competencias);
-        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(exportRows(hu4.estadisticas)), 'Estadisticos');
-        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(exportRows(hu4.categorias)), 'Categorias');
-        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(exportRows(hu4.selecciones)), 'Mejoras');
-        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(exportRows(hu4.temas)), 'Demanda');
-        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(exportRows(hu4.metodologia)), 'Metodologia');
-        XLSX.writeFile(wb, 'Estudio_Mercado_ARCUSUR_UMSS.xlsx');
-    };
 
     if (loading) {
         return (
