@@ -3,8 +3,7 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
-import { resumirFormacion, resumirFinanciamiento, filasCruceFinanciamiento } from '@/lib/postgraduate';
-import * as XLSX from 'xlsx';
+import { resumirFormacion, resumirFinanciamiento } from '@/lib/postgraduate';
 import {
     BarChart3, RefreshCw, GraduationCap, Building2
 } from 'lucide-react';
@@ -13,12 +12,13 @@ import { TabTitulados } from '@/components/dashboard/TabTitulados';
 import { TabEmpleadores } from '@/components/dashboard/TabEmpleadores';
 import { TabChiCuadrada } from '@/components/dashboard/TabChiCuadrada';
 import { TabReports } from '@/components/dashboard/TabReports';
+import { TabProfiles } from '@/components/dashboard/TabProfiles';
 import { HU1Overview } from '@/components/dashboard/HU1Overview';
 import { AnalysisNavigation, type AnalysisSection } from '@/components/dashboard/AnalysisNavigation';
 import { EmptyAnalysis } from '@/components/dashboard/EmptyAnalysis';
 import { resumirEmpleabilidad } from '@/lib/employability';
-import { resumirCompetencias, exportCompetencies, type GraduateScope } from '@/lib/competencies';
-import { normalizeStored, safeSpreadsheetValue, type Row } from '@/lib/importPipeline';
+import { resumirCompetencias, type GraduateScope } from '@/lib/competencies';
+import { normalizeStored, type Row } from '@/lib/importPipeline';
 import { readAllRows, databaseMessage } from '@/lib/surveyRepository';
 import { buildCrossAnalyses } from '@/lib/crossAnalysis';
 import { buildEmployabilityProfiles, buildEmployabilityRelations } from '@/lib/employabilityAnalysis';
@@ -62,70 +62,7 @@ export default function DashboardScreen() {
 
     const competencias = useMemo(() => resumirCompetencias(titulados, empleadores, competencyScope), [titulados, empleadores, competencyScope]);
     const sectionHasData = titulados.length > 0 ||
-        ((activeTab === 'empleadores' || activeTab === 'reportes') && empleadores.length > 0);
-
-    // HU 5: Exportación a Excel de vista legacy
-    const exportarAExcel = () => {
-        const wb = XLSX.utils.book_new();
-        const exportRows = (rows: Row[]) => rows.map(r => Object.fromEntries(Object.entries(r)
-            .filter(([k]) => k !== 'raw_data').map(([k, v]) => [k, safeSpreadsheetValue(v)])));
-        const exportProfiles = (profiles: ReturnType<typeof buildFormationReportProfiles>) => profiles.flatMap(profile => profile.cells
-            .filter(cell => cell.count > 0)
-            .map(cell => ({
-                perfil: profile.title,
-                fila: cell.row,
-                columna: cell.column,
-                personas: cell.count,
-                porcentaje_fila: cell.percentOfRow,
-                medida: cell.average,
-                tipo_medida: profile.metricType === 'rate' ? 'proporcion_afirmativa' : 'promedio',
-                base_valida: profile.total,
-                excluidas: profile.excluded,
-            })));
-        const wsTitulados = XLSX.utils.json_to_sheet(exportRows(titulados));
-        XLSX.utils.book_append_sheet(wb, wsTitulados, 'Titulados');
-        const wsEmpleadores = XLSX.utils.json_to_sheet(exportRows(empleadores));
-        XLSX.utils.book_append_sheet(wb, wsEmpleadores, 'Empleadores');
-        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(hu1.plazos), 'Plazos');
-        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(hu1.situaciones), 'Ocupacion');
-        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(hu1.experienciaGrupos), 'Experiencia');
-        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(exportRows(formacion.areas)), 'Areas');
-        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(formacion.niveles), 'Niveles_Cursados');
-        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(financiamiento.distribucion), 'Fuentes');
-        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(filasCruceFinanciamiento(financiamiento)), 'Cruce');
-        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(exportProfiles(formationReportProfiles)), 'Perfiles_Formacion');
-        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(exportProfiles(employerReportProfiles)), 'Perfil_Empleadores');
-        const chi = financiamiento.chi;
-        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet([
-            { indicador: 'Alcance', valor: 'Nivel cursado y financiamiento utilizado; no intenciones futuras.' },
-            { indicador: 'Base total de titulados', valor: titulados.length },
-            { indicador: 'interesados en posgrado', valor: formacion.interesados },
-            { indicador: 'interesados sin area', valor: formacion.sinArea },
-            { indicador: 'concentracion top 2 (%)', valor: formacion.concentracion.total ? formacion.concentracion.porcentaje : null },
-            { indicador: 'base de fuentes', valor: financiamiento.fuentesValidas },
-            { indicador: 'base del cruce', valor: chi.total },
-            { indicador: 'sin posgrado', valor: financiamiento.exclusiones.sinPosgrado },
-            { indicador: 'ruta no confirmada', valor: financiamiento.exclusiones.rutaNoConfirmada },
-            { indicador: 'pares incompletos', valor: financiamiento.exclusiones.incompletas },
-            { indicador: 'categorias no reconocidas', valor: financiamiento.exclusiones.noReconocidas },
-            { indicador: 'Estado del contraste', valor: chi.estado },
-            { indicador: 'Chi-cuadrada de Pearson', valor: chi.chi2 },
-            { indicador: 'Grados de libertad', valor: chi.gradosLibertad },
-            { indicador: 'p-valor asintotico (vacio si no interpretable)', valor: chi.pValor },
-            { indicador: 'Alfa', valor: chi.alfa },
-            { indicador: 'Esperadas menores de 5', valor: chi.celdasMenor5 },
-            { indicador: 'Minima esperada', valor: chi.minimaEsperada },
-            { indicador: 'Datos faltantes en el instrumento', valor: 'Anio de egreso, nivel deseado y fuente prevista para futuros estudios.' },
-            { indicador: 'Interpretacion', valor: chi.existeDependencia === null ? 'Sin conclusion inferencial; consultar estado y esperadas.' : chi.existeDependencia ? 'Evidencia de asociacion; no prueba causalidad.' : 'Sin evidencia suficiente de asociacion; no demuestra independencia.' },
-        ]), 'Metodologia_Posgrados');
-        const hu4 = exportCompetencies(competencias);
-        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(exportRows(hu4.estadisticas)), 'Estadisticos');
-        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(exportRows(hu4.categorias)), 'Categorias');
-        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(exportRows(hu4.selecciones)), 'Mejoras');
-        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(exportRows(hu4.temas)), 'Demanda');
-        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(exportRows(hu4.metodologia)), 'Metodologia');
-        XLSX.writeFile(wb, 'Estudio_Mercado_ARCUSUR_UMSS.xlsx');
-    };
+        ((activeTab === 'empleadores' || activeTab === 'reportes' || activeTab === 'perfiles') && empleadores.length > 0);
 
     if (loading) {
         return (
@@ -139,16 +76,16 @@ export default function DashboardScreen() {
     }
 
     return (
-        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-6 sm:py-8">
+        <div className="dashboard-content max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-6 sm:py-8">
             {/* Encabezado con menú de exportación directa */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-5 border-b border-slate-200 mb-6 gap-4">
                 <div>
                     <h2 className="text-xl sm:text-2xl font-extrabold text-umss-azul flex items-center gap-2">
                         <BarChart3 className="text-umss-rojo h-6 w-6 sm:h-7 sm:w-7 flex-shrink-0" />
-                        <span>Panel Analítico y Toma de Decisiones (ARCUSUR)</span>
+                        <span>Resumen de resultados</span>
                     </h2>
                     <p className="text-xs sm:text-sm text-slate-500 mt-1">
-                        Indicadores empíricos de empleabilidad, formación continua y pertinencia curricular.
+                        Información sobre empleo, formación y necesidades del mercado laboral.
                     </p>
                 </div>
 
@@ -191,6 +128,13 @@ export default function DashboardScreen() {
                 {activeTab === 'empleadores' && (
                     <><TabEmpleadores summary={competencias} onScope={setCompetencyScope} empleadores={empleadores} reportProfiles={employerReportProfiles} /><div className="mt-6"><EmergingAreasPanel rows={empleadores} onChange={setEmpleadores} /></div></>
                 )}
+                {activeTab === 'perfiles' && (
+                    <TabProfiles
+                        formationProfiles={formationReportProfiles}
+                        employabilityProfiles={employabilityProfiles}
+                        employerProfiles={employerReportProfiles}
+                    />
+                )}
                 {activeTab === 'estadistica' && (
                     <div className="space-y-8">
                         <TabChiCuadrada summary={financiamiento} />
@@ -199,10 +143,10 @@ export default function DashboardScreen() {
                                 <div className="flex items-start gap-3">
                                     <span className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full bg-umss-azul" aria-hidden="true" />
                                     <div>
-                                        <p className="text-xs font-semibold uppercase tracking-widest text-teal-700">Análisis estadístico centralizado</p>
-                                        <h3 id="estadistica-centralizada-title" className="mt-1 text-xl font-bold tracking-tight text-slate-900">Cruces del informe académico</h3>
+                                        <p className="text-xs font-semibold uppercase tracking-widest text-teal-700">Comparación de respuestas</p>
+                                        <h3 id="estadistica-centralizada-title" className="mt-1 text-xl font-bold tracking-tight text-slate-900">Comparaciones entre respuestas</h3>
                                         <p className="mt-2 text-sm leading-relaxed text-slate-600">
-                                            Selecciona un cruce para consultar su tabla, frecuencias esperadas, estadístico y prueba correspondiente. El sistema usa Pearson o Fisher según los supuestos de cada matriz.
+                                            Selecciona una comparación para consultar cómo se relacionan dos respuestas. Las tablas muestran únicamente los datos disponibles y válidos.
                                         </p>
                                     </div>
                                 </div>
@@ -213,13 +157,8 @@ export default function DashboardScreen() {
                 )}
                 {activeTab === 'reportes' && (
                     <TabReports
-                        scope={competencyScope}
-                        corte={limiteExperiencia}
-                        onScope={setCompetencyScope}
-                        onCorte={setLimiteExperiencia}
                         titulados={titulados}
                         empleadores={empleadores}
-                        onRawExport={exportarAExcel}
                     />
                 )}
             </>}

@@ -52,12 +52,12 @@ export function TabTitulados({ summary: s, relations, reportProfiles }: { summar
                         </p>
                     </> : <p className="mt-3 text-sm text-slate-600">Carga las respuestas oficiales para identificar las áreas prioritarias.</p>}
                 </article>
-                <details className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
-                    <summary className="cursor-pointer text-sm font-semibold text-slate-800">¿Se conoce qué nivel desean estudiar?</summary>
+                <article className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
+                    <h3 className="text-sm font-semibold text-slate-800">Nivel de posgrado deseado</h3>
                     <p className="mt-3 text-sm leading-relaxed text-slate-600">
                         La encuesta disponible recoge áreas de interés, pero no el nivel de posgrado deseado. Por eso esta vista no presenta una distribución de preferencias entre Maestría, Especialidad y Doctorado. La formación ya cursada se muestra aparte como antecedente.
                     </p>
-                </details>
+                </article>
             </aside>
         </div>
 
@@ -94,11 +94,11 @@ export function TabTitulados({ summary: s, relations, reportProfiles }: { summar
         <FormationRelations relations={relations} />
         <ReportMultivariateProfiles profiles={reportProfiles} title="Perfiles de formación del informe" />
 
-        <details className="rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-600">
-            <summary className="cursor-pointer font-medium text-slate-800">Cómo se calculan las preferencias</summary>
+        <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-xs leading-relaxed text-slate-600">
+            <strong>Cómo se calculan las preferencias:</strong>
             <p className="mt-3 leading-relaxed">
                 Cada frecuencia relativa divide la cantidad de respuestas de un área entre el total con área declarada. El porcentaje acumulado sigue el orden de mayor a menor frecuencia. El umbral del 70% es orientativo y no demuestra por sí solo viabilidad técnica o financiera.
             </p>
-        </details>
+        </div>
     </section>;
 }

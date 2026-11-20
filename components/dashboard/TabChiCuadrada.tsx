@@ -5,7 +5,7 @@ import { Distribution, Indicator, percentLabel } from './AnalyticsUI';
 export function TabChiCuadrada({ summary: s }: { summary: FinancingSummary }) {
     const leader = s.distribucion[0];
 
-    return <section className="space-y-6 [&>details]:hidden [&>article]:hidden" aria-labelledby="financiamiento-title">
+    return <section className="space-y-6" aria-labelledby="financiamiento-title">
         <header>
             <p className="text-xs font-semibold uppercase tracking-widest text-umss-azul">Financiamiento</p>
             <h2 id="financiamiento-title" className="mt-2 text-2xl font-bold tracking-tight text-slate-900">¿Cómo financiaron su posgrado?</h2>
@@ -28,10 +28,10 @@ export function TabChiCuadrada({ summary: s }: { summary: FinancingSummary }) {
             </aside>
         </div>
 
-        <details className="rounded-xl border border-slate-200 bg-white p-5 text-sm text-slate-600"><summary className="cursor-pointer font-medium text-slate-800">Procedencia, bases válidas y exclusiones</summary>
+        <section className="rounded-xl border border-slate-200 bg-white p-5 text-sm text-slate-600"><h3 className="font-medium text-slate-800">Cómo se obtuvieron estos resultados</h3>
                 <ul className="mt-3 space-y-2"><li>{s.exclusiones.sinPosgrado} declaran no haber realizado formación complementaria.</li><li>{s.exclusiones.rutaNoConfirmada} no permiten confirmar esa condición.</li><li>{s.exclusiones.incompletas} no tienen nivel o fuente respondidos.</li><li>{s.exclusiones.noReconocidas} tienen categorías que no se pudieron reconocer.</li></ul>
                 <p className="mt-3 text-xs">Las razones se cuentan una sola vez por respuesta. Los originales se conservan; no se asigna «Recursos propios» a los vacíos ni se incorpora interés futuro como un nivel cursado.</p>
-        </details>
+        </section>
 
         {/* Panel de directrices estratégicas para la gestión institucional */}
         <article className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-sm">
@@ -64,6 +64,6 @@ export function TabChiCuadrada({ summary: s }: { summary: FinancingSummary }) {
             </div>
         </article>
 
-        <details className="rounded-xl border border-slate-200 bg-white p-5 text-sm leading-relaxed text-slate-600"><summary className="cursor-pointer font-semibold text-slate-900">Alcance para futuros estudios</summary><p className="mt-3">Para analizar financiamiento futuro debe preguntarse «¿Qué nivel desea estudiar?» y «¿Cuál sería su principal fuente de financiamiento?». La encuesta disponible no distingue becas estatales de empresariales ni pregunta por créditos educativos futuros. Los datos de esta vista describen programas cursados.</p></details>
+        <section className="rounded-xl border border-slate-200 bg-white p-5 text-sm leading-relaxed text-slate-600"><h3 className="font-semibold text-slate-900">Qué falta conocer para estudios futuros</h3><p className="mt-3">Para analizar financiamiento futuro debe preguntarse «¿Qué nivel desea estudiar?» y «¿Cuál sería su principal fuente de financiamiento?». La encuesta disponible no distingue becas estatales de empresariales ni pregunta por créditos educativos futuros. Los datos de esta vista describen programas cursados.</p></section>
     </section>;
 }

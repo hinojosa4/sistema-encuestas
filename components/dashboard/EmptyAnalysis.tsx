@@ -6,6 +6,7 @@ const titles: Record<AnalysisSection, string> = {
     titulados: 'Empleabilidad',
     formacion: 'Formación continua',
     estadistica: 'Financiamiento',
+    perfiles: 'Explora perfiles',
     empleadores: 'Formación y competencias',
     reportes: 'Reportes',
 };

@@ -1,6 +1,7 @@
 import * as XLSX from 'xlsx';
 import { normalizarTexto } from './dataMappers';
 import { normalizeEmployerField, normalizeEmployerSector, normalizeEmployerSize, safeSpreadsheetValue, type Row } from './importPipeline';
+import { fieldLabel } from './surveyFields';
 
 export const EXCLUDED_INTERNAL_KEYS = new Set([
     'raw_data',
@@ -102,7 +103,7 @@ export function cleanRowsToCsv(rows: Row[]): string {
         headers.map(h => `"${h}"`).join(','),
         ...cleaned.map(row => headers.map(h => escapeCsv(row[h])).join(',')),
     ];
-    return '\ufeff' + lines.join('\r\n');
+    return lines.join('\r\n');
 }
 
 export function createCleanDatasetWorkbook(titulados: Row[], empleadores: Row[]) {
@@ -129,7 +130,36 @@ export function createCleanDatasetWorkbook(titulados: Row[], empleadores: Row[])
     ]);
     XLSX.utils.book_append_sheet(wb, wsMeta, 'Metadatos_Limpieza');
 
+    const dictionaryRows = [
+        ['Conjunto', 'Campo', 'Nombre comprensible', 'Qué representa', 'Transformación aplicada'],
+        ...buildDataDictionary(cleanTitulados, 'Titulados'),
+        ...buildDataDictionary(cleanEmpleadores, 'Empleadores'),
+    ];
+    const wsDictionary = XLSX.utils.aoa_to_sheet(dictionaryRows);
+    wsDictionary['!cols'] = [{ wch: 16 }, { wch: 34 }, { wch: 38 }, { wch: 58 }, { wch: 58 }];
+    wsDictionary['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: dictionaryRows.length - 1, c: 4 } }) };
+    XLSX.utils.book_append_sheet(wb, wsDictionary, 'Guia_de_datos');
+
     return wb;
+}
+
+function buildDataDictionary(rows: Record<string, unknown>[], source: string): unknown[][] {
+    const fields = [...new Set(rows.flatMap(row => Object.keys(row)))].sort();
+    return fields.map(field => [
+        source,
+        field,
+        fieldLabel(field),
+        `Respuesta registrada en la encuesta de ${source.toLowerCase()}.`,
+        transformationFor(field),
+    ]);
+}
+
+function transformationFor(field: string): string {
+    if (field.endsWith('_normalizado')) return 'Se agrega una versión estandarizada para facilitar agrupaciones y búsquedas.';
+    if (field.endsWith('_categoria')) return 'Se agrupa en una categoría común para resumir respuestas equivalentes.';
+    if (field === 'numero_empleados_reportado') return 'Se extrae el número cuando estaba incluido dentro del texto original.';
+    if (field.includes('anios_') || field.includes('tiempo_') || field.includes('remuneracion')) return 'Se conserva como valor numérico cuando la respuesta permite interpretarlo.';
+    return 'Se conserva la respuesta útil y se excluyen identificadores internos y datos de contacto.';
 }
 
 export function triggerDownload(content: BlobPart, mime: string, filename: string) {

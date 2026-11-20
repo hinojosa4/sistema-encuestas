@@ -1,5 +1,5 @@
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from 'pdf-lib';
-import { buildAcademicReport, UMSS_COLORS, type AcademicBlock } from './academicReport';
+import { buildResultsReport, UMSS_COLORS, type AcademicBlock } from './academicReport';
 import type { AnalysisReport } from './reports';
 
 const W = 595.28, H = 841.89, M = 56, CW = W - M * 2, BOTTOM = 72;
@@ -11,7 +11,7 @@ export async function academicReportToPdf(report: AnalysisReport, logo?: Uint8Ar
     const document = await PDFDocument.create();
     const normal = await document.embedFont(StandardFonts.Helvetica);
     const bold = await document.embedFont(StandardFonts.HelveticaBold);
-    const model = buildAcademicReport(report);
+    const model = buildResultsReport(report);
     const clean = (value: unknown, font = normal) => Array.from(String(value ?? '').normalize('NFC').replace(/χ²/g,'chi-cuadrada').replace(/χ/g,'chi').replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g,''))
         .map(c=>{try{font.encodeText(c);return c;}catch{return '-';}}).join('');
     const wrap = (text: unknown, width: number, size = 10.5, font = normal) => {
@@ -64,7 +64,7 @@ export async function academicReportToPdf(report: AnalysisReport, logo?: Uint8Ar
     center(cover,'Taller de Simulación',cy-36,12,bold);
     center(cover,'Cochabamba Bolivia',140,11);
     center(cover,`Fecha de generación: ${new Date(report.generadoUTC).toLocaleDateString('es-BO',{timeZone:'America/La_Paz',day:'numeric',month:'long',year:'numeric'})}`,121,11);
-    center(cover,'Versión para revisión académica',92,10,bold,RED);
+    center(cover,'Anexo de resultados para el informe del equipo',92,10,bold,RED);
 
     const contents: {title:string; page:number}[] = [];
     let figureCount=0;
@@ -149,13 +149,13 @@ export async function academicReportToPdf(report: AnalysisReport, logo?: Uint8Ar
     }
 
     // Populate the reserved contents page only after page numbers are known.
-    page=toc;y=H-82;heading('Contenido y resumen ejecutivo',true);
+    page=toc;y=H-82;heading('Contenido de resultados',true);
     for(const entry of contents){
         const lines=wrap(entry.title,CW-50,11);
         lines.forEach((line,i)=>{put(toc,line,M,y,11);if(i===0)put(toc,String(entry.page),W-M-22,y,11,bold,BLUE);y-=16;});y-=9;
     }
-    heading('Resumen ejecutivo');paragraph(model.resumen);
-    note('Palabras clave: empleabilidad, formación continua, competencias profesionales, análisis de mercado, UMSS.');
+    heading('Resumen de la generación');paragraph(model.resumen);
+    note('Este documento contiene resultados procesados para consulta y para anexarlos al informe elaborado por el equipo.');
 
     const pages=document.getPages();
     pages.forEach((p,index)=>{
@@ -164,7 +164,7 @@ export async function academicReportToPdf(report: AnalysisReport, logo?: Uint8Ar
         put(p,`Reporte ${report.huella.slice(0,12)}  |  ${report.version}`,M,36,8,normal,GRAY);
         put(p,`${index+1} / ${pages.length}`,W-M-45,36,8,normal,GRAY);
     });
-    document.setTitle(model.titulo);document.setSubject('Análisis académico de mercado a partir de encuestas');
+    document.setTitle(model.titulo);document.setSubject('Resultados estadísticos para el informe de análisis de mercado');
     document.setAuthor('Sistema de Encuestas UMSS');
     document.setCreator('Sistema de Encuestas UMSS');document.setKeywords(['UMSS','empleabilidad','posgrado','competencias','análisis de mercado']);
     document.setCreationDate(new Date(report.generadoUTC));
