@@ -173,5 +173,5 @@ export type AnalysisReport = ReturnType<typeof buildReport> & { huella: string; 
 
 export function tableToCsv(t: ReportTable) {
     const escape = (value: ReportCell) => `"${String(safeSpreadsheetValue(value) ?? '').replace(/"/g, '""')}"`;
-    return '\ufeff' + [t.columnas, ...t.filas].map(row => row.map(escape).join(',')).join('\r\n');
+    return [t.columnas, ...t.filas].map(row => row.map(escape).join(',')).join('\r\n');
 }

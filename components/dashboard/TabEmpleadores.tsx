@@ -2,7 +2,6 @@
 import { useState } from 'react';
 import { ResponsiveContainer, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, Tooltip } from 'recharts';
 import type { CompetencySummary, GraduateScope, MultipleSummary, RatingSummary } from '@/lib/competencies';
-import { themeRules } from '@/lib/competencies';
 import { Distribution, Indicator, percentLabel } from './AnalyticsUI';
 import { calcularDistribucionFrecuencias } from '@/lib/statistics';
 import type { Row } from '@/lib/importPipeline';
@@ -10,6 +9,23 @@ import type { ReportProfile } from '@/lib/reportMultivariate';
 import { ReportMultivariateProfiles } from './ReportMultivariateProfiles';
 
 const scoreLabel = (value: number | null) => value === null ? '—' : value.toLocaleString('es-BO', { maximumFractionDigits: 2 });
+
+const topicDescription = (name: string) => {
+    const descriptions: Record<string, string> = {
+        'Inteligencia artificial y aprendizaje automático': 'IA, aprendizaje automático y aplicaciones inteligentes.',
+        'Ciberseguridad y protección de datos': 'Protección de sistemas, redes y datos.',
+        'Datos y analítica': 'Bases de datos, información y análisis.',
+        'Desarrollo y arquitectura de software': 'Programación, aplicaciones y diseño de sistemas.',
+        'Computación en la nube e infraestructura': 'Servicios en la nube, servidores y conectividad.',
+        'Automatización, IoT e industria 4.0': 'Automatización, dispositivos conectados y procesos inteligentes.',
+        'Gestión, negocio e innovación digital': 'Gestión, innovación y transformación digital.',
+        'Habilidades transversales y ética': 'Comunicación, colaboración, responsabilidad y ética.',
+        'Formación general y adaptación tecnológica': 'Aprendizaje continuo y adaptación a nuevas tecnologías.',
+        'Blockchain y tecnologías descentralizadas': 'Blockchain, registros distribuidos y nuevas plataformas.',
+        'Interoperabilidad y estándares sectoriales': 'Integración entre sistemas y uso de estándares.',
+    };
+    return descriptions[name] ?? 'Tema identificado en las respuestas de los empleadores.';
+};
 
 function RatingPanel({ items, title }: { items: RatingSummary[]; title: string }) {
     const [field, setField] = useState(items[0]?.campo ?? '');
@@ -64,7 +80,7 @@ function MultiplePanel({ items, thematic = false }: { items: MultipleSummary[]; 
         {!selected.opciones.length ? <p className="mt-5 rounded-xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center text-sm text-slate-600">{selected.respondieron ? 'Hay respuestas, pero no hay coincidencias con el catálogo de temas. No se les asigna un tema por suposición.' : 'No hay respuestas para esta pregunta en la población seleccionada.'}</p> : table ? <div className="mt-5 overflow-x-auto">
             <table className="w-full text-left text-sm"><caption className="sr-only">{selected.titulo}. Porcentajes sobre {selected.respondieron} personas.</caption><thead className="border-b border-slate-200 text-xs text-slate-600"><tr><th scope="col" className="py-3 pr-3">{thematic ? 'Tema mencionado' : 'Opción'}</th><th scope="col" className="p-3 text-right">Personas</th><th scope="col" className="py-3 pl-3 text-right">% de personas</th></tr></thead><tbody className="divide-y divide-slate-100">{selected.opciones.map(r => <tr key={r.nombre}><th scope="row" className="py-3 pr-3 font-normal text-slate-800">{r.nombre}</th><td className="p-3 text-right tabular-nums">{r.cantidad}</td><td className="py-3 pl-3 text-right tabular-nums">{percentLabel(r.porcentaje)}</td></tr>)}</tbody></table>
         </div> : <div className="mt-6 space-y-5" role="list" aria-label={selected.titulo}>{selected.opciones.map(r => <div key={r.nombre} role="listitem"><div className="mb-2 flex items-baseline justify-between gap-4 text-sm"><span className="text-slate-800">{r.nombre}</span><span className="shrink-0 font-semibold tabular-nums">{percentLabel(r.porcentaje)} <span className="font-normal text-slate-500">({r.cantidad})</span></span></div><div aria-hidden="true" className="h-3 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-teal-700" style={{ width: `${r.porcentaje}%` }} /></div></div>)}</div>}
-        {thematic && <details className="mt-6 border-t border-slate-200 pt-4 text-sm text-slate-600"><summary className="cursor-pointer font-medium text-slate-800">Cómo se clasifican las menciones</summary><p className="mt-3 leading-relaxed">Se buscan términos explícitos, sin distinguir mayúsculas ni acentos. Una respuesta cuenta una vez por tema aunque repita términos. Es una clasificación preliminar: puede omitir sinónimos o interpretar una mención negada como coincidencia; requiere revisión humana antes de sustentar cambios curriculares. No se muestran textos individuales ni se enlazan respuestas de personas y empresas.</p><ul className="mt-3 space-y-2 text-xs">{themeRules.map(rule => <li key={rule.nombre}><strong>{rule.nombre}:</strong> {rule.pattern.source.replace(/\\b/g, '').replace(/[()]/g, '').replace(/\|/g, ', ')}</li>)}</ul></details>}
+        {thematic && <article className="mt-6 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700"><h4 className="font-semibold text-slate-900">Cómo se agrupan las respuestas</h4><p className="mt-2 text-xs leading-relaxed text-slate-600">Los temas se muestran con los mismos nombres usados en la tabla de resultados.</p><div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">{selected.opciones.map(topic => <div key={topic.nombre} className="rounded-lg border border-slate-200 bg-white p-3"><strong className="block text-teal-800">{topic.nombre}</strong><span className="mt-1 block text-xs text-slate-600">{topicDescription(topic.nombre)}</span></div>)}</div></article>}
     </article>;
 }
 
@@ -311,13 +327,11 @@ export function TabEmpleadores({ summary: s, onScope, empleadores = [], reportPr
         {section === 'empleadores' && <div className="space-y-6">
             <RatingPanel items={s.perfilEmpleadores} title="Percepción del perfil y desempeño profesional" />
             <MultiplePanel items={s.demanda} thematic />
-            <details className="rounded-2xl border border-slate-200 bg-white p-5"><summary className="cursor-pointer font-semibold text-slate-900">Vinculación institucional y alianzas</summary><div className="mt-5"><RatingPanel items={s.vinculacion} title="Relación con empleadores: contexto institucional" /></div></details>
-            <details className="rounded-2xl border border-slate-200 bg-white p-5"><summary className="cursor-pointer font-semibold text-slate-900">Radares complementarios de percepción</summary><div className="mt-5 grid gap-5 xl:grid-cols-2">
+            <section aria-labelledby="vinculacion-title" className="rounded-2xl border border-slate-200 bg-white p-5"><h3 id="vinculacion-title" className="font-semibold text-slate-900">Vinculación institucional y alianzas</h3><p className="mt-2 text-sm leading-relaxed text-slate-600">Muestra cómo valoran los empleadores la relación con la carrera, las oportunidades laborales, las pasantías y la retroalimentación institucional.</p><div className="mt-5"><RatingPanel items={s.vinculacion} title="Relación con empleadores: contexto institucional" /></div></section>
+            <section aria-labelledby="radar-percepcion-title" className="rounded-2xl border border-slate-200 bg-white p-5"><div><h3 id="radar-percepcion-title" className="font-semibold text-slate-900">Radares de percepción</h3><p className="mt-2 text-sm leading-relaxed text-slate-600">Compara visualmente cómo valoran los empleadores el perfil profesional y la vinculación institucional. Las escalas se mantienen separadas.</p></div><div className="mt-5 grid gap-5 xl:grid-cols-2">
                 <EmployerRadar items={s.perfilEmpleadores} title="Perfil y competencias laborales generales" fields={[{campo:'confianza_carrera_formadora',label:'Confianza'},{campo:'consistencia_titulo_competencias',label:'Título y competencias'},{campo:'coherencia_perfil_desempeno',label:'Perfil y desempeño'},{campo:'evidencia_competencias_laborales',label:'Competencias laborales'},{campo:'valores_etica_responsabilidad',label:'Ética'}]} />
                 <EmployerRadar items={s.vinculacion} title="Vinculación institucional" fields={[{campo:'busqueda_talento_umss',label:'Búsqueda de talento'},{campo:'vinculos_oportunidades_laborales',label:'Oportunidades'},{campo:'participacion_difusion_pasantias',label:'Difusión y pasantías'},{campo:'consulta_retroalimentacion_plan',label:'Plan de estudios'},{campo:'consulta_procesos_autoevaluacion',label:'Autoevaluación'}]} />
-            </div></details>
+            </div></section>
         </div>}
-        <details className="rounded-xl border border-slate-200 bg-white p-5 text-sm leading-relaxed text-slate-600"><summary className="cursor-pointer font-semibold text-slate-800">Alcance de la evaluación de competencias</summary><p className="mt-3">Los resultados describen satisfacción, concordancia y propuestas de mejora. No miden por separado la suficiencia de cada competencia técnica o transversal frente al puesto. Para obtener una brecha numérica se necesitan niveles de formación recibida y exigencia del puesto en una escala comparable; no se restan opiniones de muestras distintas.</p></details>
-        <details className="rounded-xl border border-slate-200 bg-white p-5 text-sm leading-relaxed text-slate-600"><summary className="cursor-pointer font-semibold text-slate-800">Cómo interpretar las escalas y los resultados</summary><p className="mt-3">Titulados: cuatro categorías de acuerdo (1–4). Empleadores: tres categorías (1–3) y «No sabe» sin puntaje. No se transforman a cinco categorías para esta vista ni se comparan directamente sus medias. Se muestran frecuencias y medianas junto con medias y desviaciones descriptivas de los códigos; estas últimas no suponen distancias psicológicas demostradas entre categorías.</p><p className="mt-3">Los resultados se limitan a las respuestas disponibles y a la población elegida. Una asignatura señalada como menos útil no es automáticamente prescindible; requiere revisión curricular y del contexto laboral. «Otra asignatura» libre se conserva en los datos originales y no se clasifica automáticamente.</p></details>
     </section>;
 }

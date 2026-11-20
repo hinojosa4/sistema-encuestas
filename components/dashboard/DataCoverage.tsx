@@ -1,6 +1,6 @@
 export function DataCoverage({ tieneEgreso = false }: { tieneEgreso?: boolean }) {
-    return <details className="border-t border-slate-200 px-1 py-4 text-sm text-slate-600">
-        <summary className="cursor-pointer font-semibold text-slate-800 focus-visible:outline-2 focus-visible:outline-blue-700">Alcance de las encuestas</summary>
+    return <section className="border-t border-slate-200 px-1 py-4 text-sm text-slate-600" aria-labelledby="coverage-title">
+        <h3 id="coverage-title" className="font-semibold text-slate-800">Qué podemos conocer con estas encuestas</h3>
         <p className="mt-3 leading-relaxed">Los archivos entregados por el docente permiten analizar respuestas observadas. Una preferencia futura requiere una pregunta específica; no se deduce de los estudios previos.</p>
         <div className="mt-4 overflow-x-auto">
             <table className="w-full min-w-[580px] text-left text-sm">
@@ -15,5 +15,5 @@ export function DataCoverage({ tieneEgreso = false }: { tieneEgreso?: boolean })
             </table>
         </div>
         <p className="mt-4 text-xs leading-relaxed">Estos datos adicionales deben recogerse en un instrumento complementario. Abrir un programa requiere además costos, cupos y estimaciones de matrícula efectiva.</p>
-    </details>;
+    </section>;
 }

@@ -58,7 +58,7 @@ export function buildAcademicReport(r: AnalysisReport) {
         { titulo:'2 Marco metodológico', bloques:[
             text(`Se realizó un análisis secundario, cuantitativo, descriptivo y exploratorio de ${r.titulados} respuestas de titulados y ${r.empleadores} de empleadores visibles en la base al generar este informe. La población de interés son los titulados de Ingeniería en Sistemas y las organizaciones vinculadas a su ejercicio profesional. No se cuenta con un marco muestral ni un diseño probabilístico documentados que permitan generalizar los porcentajes a toda esa población.`),
             text('La herramienta importa archivos Excel o CSV, identifica preguntas, conserva respuestas originales y revisa categorías y unidades. Conserva respuestas iguales de distintos envíos; evita reimportaciones identificables por ID y formulario o por fila del mismo archivo. Sin procedencia confiable no elimina coincidencias por contenido. Los saltos del cuestionario se distinguen de las ausencias. Los números de desempleo sin una unidad confirmada se excluyen del indicador en meses; cero permanece como una respuesta válida. Un identificador de envío no demuestra una única respuesta independiente por persona.'),
-            text(`Las bases cambian por pregunta. El análisis de competencias utiliza ${cohort}; el filtro considera trabajo actual, emprendimiento, trabajo previo declarado o experiencia profesional positiva. El corte exploratorio de experiencia es de ${r.parametros.corte} años y no identifica cargos, jerarquías ni año de egreso. La pertinencia del puesto se restringe a quienes trabajan en una organización.`),
+            text(`Las bases cambian por pregunta. El análisis de competencias utiliza ${cohort}; el filtro considera trabajo actual, emprendimiento, trabajo previo declarado o experiencia profesional positiva. La experiencia se usa únicamente para describir la muestra y no identifica cargos, jerarquías ni año de egreso. La pertinencia del puesto se restringe a quienes trabajan en una organización.`),
             text('Las valoraciones de titulados conservan cuatro categorías de acuerdo y las de empleadores tres categorías, además de No sabe sin puntaje. Las medias y desviaciones muestrales resumen códigos ordinales; se acompañan de frecuencias y medianas, y no equivalen a niveles de dominio ni a distancias psicológicas demostradas. Las preguntas de selección múltiple usan personas que respondieron como denominador y pueden sumar más de 100%.'),
             text('Se construye una tabla de contingencia entre nivel cursado y financiamiento utilizado. La aproximación de Pearson se interpreta solo si satisface los criterios de frecuencias esperadas descritos en el diagnóstico (National Institute of Standards and Technology [NIST], s. f.). Las menciones abiertas de empleadores se clasifican mediante palabras clave; se informa la cantidad sin coincidencias y se requiere revisión humana para sustentar decisiones.'),
             text('La fecha de generación no es la fecha de aplicación de las encuestas. El periodo de recolección, el procedimiento de selección y la independencia de las respuestas deben documentarse con el docente. La lectura de la base es paginada y no constituye una instantánea transaccional; los formatos exportados de una misma generación comparten sus valores.'),
@@ -131,7 +131,7 @@ export function buildAcademicReport(r: AnalysisReport) {
             ]),
             text(`Generado en UTC: ${r.generadoUTC}. Versión de método: ${r.version}. Huella SHA-256 del contenido analítico: ${r.huella}. Identifica la generación de datos, no el archivo PDF ni la autoría académica. No es una firma institucional.`),
             text(`Versión de datos (SHA-256): ${r.datosVersion ?? 'No registrada en esta generación local'}. Las tres exportaciones generales se derivan del mismo reporte.`),
-            text(`Población de competencias: ${cohort}. Corte exploratorio de experiencia: ${r.parametros.corte} años. El detalle completo de frecuencias, exclusiones, escalas y reglas de clasificación se conserva en el Excel de análisis de la misma generación.`),
+            text(`Población de competencias: ${cohort}. El detalle completo de frecuencias, exclusiones, escalas y reglas de clasificación se conserva en el Excel de análisis de la misma generación.`),
             table('Tabla A1 Procedencia registrada',['Origen','Archivo','Respuestas'],academicRows(r,'Procedencia').map(row=>[String(row.tipo),String(row.archivo),cellNumber(row.respuestas)]),'Se presenta lo registrado en la base. Los nombres o huellas ausentes no se inventan.',[0.2,0.65,0.15]),
         ]},
     ];
@@ -139,6 +139,39 @@ export function buildAcademicReport(r: AnalysisReport) {
     return { titulo:'Análisis de mercado de titulados de Ingeniería en Sistemas', subtitulo:'Perfil profesional y formación continua frente a los requerimientos del sector productivo', resumen, sections };
 }
 const cellNumber = (v: unknown): number | null => value(v);
+
+export function buildResultsReport(r: AnalysisReport) {
+    const academic = buildAcademicReport(r);
+    const sections = academic.sections
+        .map(section => ({
+            titulo: section.titulo.replace(/^\d+\s+/, ''),
+            bloques: section.bloques.filter(block => block.tipo === 'tabla' || block.tipo === 'barras' || block.tipo === 'radar') as AcademicBlock[],
+        }))
+        .filter(section => section.bloques.length > 0);
+    return {
+        titulo: 'Resultados estadísticos del sistema',
+        subtitulo: 'Tablas y gráficos descriptivos generados a partir de las encuestas',
+        resumen: `Resultados procesados a partir de ${r.titulados} respuestas de titulados y ${r.empleadores} respuestas de empleadores. Estos resultados requieren interpretación y contexto por parte del equipo académico.`,
+        sections,
+    };
+    /*
+    const dataBlocks = academic.sections.flatMap(section => section.bloques)
+        .filter(block => block.tipo === 'tabla' || block.tipo === 'barras' || block.tipo === 'radar')
+        .filter(block => !(block.tipo === 'tabla' && String(block.titulo ?? '').toLowerCase().includes('corte')));
+    const tablesAndBars = dataBlocks.filter(block => block.tipo !== 'radar');
+    const radars = dataBlocks.filter(block => block.tipo === 'radar');
+    return {
+        titulo: 'Resultados estadísticos para el informe',
+        subtitulo: 'Tablas, cruces y visualizaciones generadas a partir de las encuestas importadas',
+        resumen: `Generación de resultados con ${r.titulados} respuestas de titulados y ${r.empleadores} respuestas de empleadores. Este archivo contiene evidencia estadística para apoyar el informe del equipo; no sustituye su estructura, interpretación ni redacción final.`,
+        sections: [
+            { titulo: 'Tablas y distribuciones', bloques: tablesAndBars },
+            { titulo: 'Diagramas de radar', bloques: radars.length ? radars : [text('No hay suficientes valoraciones válidas para generar un diagrama de radar.')] },
+            { titulo: 'Trazabilidad de la generación', bloques: [text(`Generado en UTC: ${r.generadoUTC}. Versión del método: ${r.version}. Huella SHA-256 del reporte: ${r.huella}. Las tablas y gráficos corresponden a esta generación de datos y deben revisarse antes de incorporarse al informe final.`)] },
+        ],
+    };
+    */
+}
 
 function contrastText(r: AnalysisReport) {
     const rows = academicRows(r,'HU3_Contraste');

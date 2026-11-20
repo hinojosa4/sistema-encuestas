@@ -13,6 +13,7 @@ import { TabTitulados } from '@/components/dashboard/TabTitulados';
 import { TabEmpleadores } from '@/components/dashboard/TabEmpleadores';
 import { TabChiCuadrada } from '@/components/dashboard/TabChiCuadrada';
 import { TabReports } from '@/components/dashboard/TabReports';
+import { TabProfiles } from '@/components/dashboard/TabProfiles';
 import { HU1Overview } from '@/components/dashboard/HU1Overview';
 import { AnalysisNavigation, type AnalysisSection } from '@/components/dashboard/AnalysisNavigation';
 import { EmptyAnalysis } from '@/components/dashboard/EmptyAnalysis';
@@ -62,7 +63,7 @@ export default function DashboardScreen() {
 
     const competencias = useMemo(() => resumirCompetencias(titulados, empleadores, competencyScope), [titulados, empleadores, competencyScope]);
     const sectionHasData = titulados.length > 0 ||
-        ((activeTab === 'empleadores' || activeTab === 'reportes') && empleadores.length > 0);
+        ((activeTab === 'empleadores' || activeTab === 'reportes' || activeTab === 'perfiles') && empleadores.length > 0);
 
     // HU 5: Exportación a Excel de vista legacy
     const exportarAExcel = () => {
@@ -139,16 +140,16 @@ export default function DashboardScreen() {
     }
 
     return (
-        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-6 sm:py-8">
+        <div className="dashboard-content max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-6 sm:py-8">
             {/* Encabezado con menú de exportación directa */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-5 border-b border-slate-200 mb-6 gap-4">
                 <div>
                     <h2 className="text-xl sm:text-2xl font-extrabold text-umss-azul flex items-center gap-2">
                         <BarChart3 className="text-umss-rojo h-6 w-6 sm:h-7 sm:w-7 flex-shrink-0" />
-                        <span>Panel Analítico y Toma de Decisiones (ARCUSUR)</span>
+                        <span>Resumen de resultados</span>
                     </h2>
                     <p className="text-xs sm:text-sm text-slate-500 mt-1">
-                        Indicadores empíricos de empleabilidad, formación continua y pertinencia curricular.
+                        Información sobre empleo, formación y necesidades del mercado laboral.
                     </p>
                 </div>
 
@@ -191,6 +192,13 @@ export default function DashboardScreen() {
                 {activeTab === 'empleadores' && (
                     <><TabEmpleadores summary={competencias} onScope={setCompetencyScope} empleadores={empleadores} reportProfiles={employerReportProfiles} /><div className="mt-6"><EmergingAreasPanel rows={empleadores} onChange={setEmpleadores} /></div></>
                 )}
+                {activeTab === 'perfiles' && (
+                    <TabProfiles
+                        formationProfiles={formationReportProfiles}
+                        employabilityProfiles={employabilityProfiles}
+                        employerProfiles={employerReportProfiles}
+                    />
+                )}
                 {activeTab === 'estadistica' && (
                     <div className="space-y-8">
                         <TabChiCuadrada summary={financiamiento} />
@@ -199,10 +207,10 @@ export default function DashboardScreen() {
                                 <div className="flex items-start gap-3">
                                     <span className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full bg-umss-azul" aria-hidden="true" />
                                     <div>
-                                        <p className="text-xs font-semibold uppercase tracking-widest text-teal-700">Análisis estadístico centralizado</p>
-                                        <h3 id="estadistica-centralizada-title" className="mt-1 text-xl font-bold tracking-tight text-slate-900">Cruces del informe académico</h3>
+                                        <p className="text-xs font-semibold uppercase tracking-widest text-teal-700">Comparación de respuestas</p>
+                                        <h3 id="estadistica-centralizada-title" className="mt-1 text-xl font-bold tracking-tight text-slate-900">Comparaciones entre respuestas</h3>
                                         <p className="mt-2 text-sm leading-relaxed text-slate-600">
-                                            Selecciona un cruce para consultar su tabla, frecuencias esperadas, estadístico y prueba correspondiente. El sistema usa Pearson o Fisher según los supuestos de cada matriz.
+                                            Selecciona una comparación para consultar cómo se relacionan dos respuestas. Las tablas muestran únicamente los datos disponibles y válidos.
                                         </p>
                                     </div>
                                 </div>
@@ -213,13 +221,8 @@ export default function DashboardScreen() {
                 )}
                 {activeTab === 'reportes' && (
                     <TabReports
-                        scope={competencyScope}
-                        corte={limiteExperiencia}
-                        onScope={setCompetencyScope}
-                        onCorte={setLimiteExperiencia}
                         titulados={titulados}
                         empleadores={empleadores}
-                        onRawExport={exportarAExcel}
                     />
                 )}
             </>}
