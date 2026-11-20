@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { requireAdministrator } from '@/lib/auth/server';
 import { AdminSessionGuard } from '@/components/auth/AdminSessionGuard';
 import { ResetSurveysForm } from '@/components/admin/ResetSurveysForm';
+import { ClearDeletionHistoryForm } from '@/components/admin/ClearDeletionHistoryForm';
 
 export default async function AdministrationPage() {
     const { client, user } = await requireAdministrator('/administracion');
@@ -15,7 +16,10 @@ export default async function AdministrationPage() {
             </section>
             <ResetSurveysForm />
             <section className="rounded-2xl border border-slate-200 bg-white p-5">
-                <h2 className="font-semibold text-slate-900">Historial de borrados</h2>
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <h2 className="font-semibold text-slate-900">Historial de borrados</h2>
+                    <ClearDeletionHistoryForm />
+                </div>
                 {history.error ? <p className="mt-3 text-sm text-amber-900">No se pudo cargar el historial.</p> : !history.data?.length ? <p className="mt-3 text-sm text-slate-600">Sin borrados registrados.</p> : <ul className="mt-4 divide-y divide-slate-100">{history.data.map(row => <li key={row.id} className="py-3 text-sm text-slate-700"><p className="font-medium">{new Date(row.created_at).toLocaleString('es-BO', { timeZone: 'America/La_Paz' })}</p><p className="mt-1">{Number(row.detalle?.titulados ?? 0)} titulados · {Number(row.detalle?.empleadores ?? 0)} empleadores</p></li>)}</ul>}
             </section>
         </div>

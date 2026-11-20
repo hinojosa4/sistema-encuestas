@@ -12,12 +12,12 @@ export function CrossAnalyses({ analyses }: { analyses: CrossAnalysis[] }) {
     const useFisher = c.estado === 'frecuencias_bajas' && c.fisherP !== null;
     const p = useFisher ? c.fisherP : c.pValor;
     return <article className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
-        <h3 className="text-xl font-semibold text-slate-900">Cruces del informe académico</h3>
+        <h3 className="text-xl font-semibold text-slate-900">Comparaciones entre respuestas</h3>
         <label className="block text-sm font-medium">Selecciona un cruce
             <select value={id} onChange={e => setId(e.target.value)} className="mt-2 block w-full rounded-lg border border-slate-300 p-3">{analyses.map(a => <option key={a.id} value={a.id}>{a.id}: {a.titulo}</option>)}</select>
         </label>
         <p className="text-sm text-slate-600">{item.regla}</p>
-        <p className="text-sm">{item.origen} · N total {item.totalEncuesta} · Pares válidos {c.total} · Excluidos {c.excluidos}. El filtro de titulados no modifica empleadores. Corte de estos cruces: 5 años.</p>
+        <p className="text-sm">{item.origen} · N total {item.totalEncuesta} · Pares válidos {c.total} · Excluidos {c.excluidos}. Se muestran únicamente respuestas válidas para cada comparación.</p>
         {!c.total ? <p>Sin pares válidos para este cruce.</p> : <>
             <div className="flex flex-wrap gap-x-5 gap-y-2 text-xs font-medium text-slate-800" aria-label="Colores de las frecuencias esperadas">
                 <span className="inline-flex items-center gap-2"><span aria-hidden="true" className="h-4 w-4 rounded border border-sky-400 bg-sky-100" />Esperada de 5 o más</span>

@@ -51,8 +51,8 @@ function resultMessage(relation: FormationRelation, pValue: number | null) {
     if (relation.total < 2 || relation.chi.filas.length < 2 || relation.chi.columnas.length < 2) return 'No hay suficientes categorías o respuestas válidas para comparar estos grupos.';
     if (pValue === null) return 'Hay frecuencias esperadas bajas. Se muestra la tabla original y el patrón descriptivo, pero no se fuerza una conclusión estadística.';
     return pValue < relation.chi.alfa
-        ? 'Se observa una asociación estadística exploratoria en esta muestra; no demuestra causalidad.'
-        : 'No se observa evidencia suficiente de asociación en esta muestra; esto no demuestra independencia.';
+        ? `Se observa una asociación estadística exploratoria en esta muestra porque p = ${number(pValue)} es menor que α = ${number(relation.chi.alfa)}; no demuestra causalidad.`
+        : `No se observa evidencia suficiente de asociación en esta muestra porque p = ${number(pValue)} es mayor que α = ${number(relation.chi.alfa)}. Esto no demuestra que no exista relación; indica que estos datos no permiten confirmarla con el nivel de significancia elegido.`;
 }
 
 export function FormationRelations({ relations }: { relations: FormationRelation[] }) {
@@ -85,7 +85,7 @@ export function FormationRelations({ relations }: { relations: FormationRelation
             <div className="mt-5"><RelationTable relation={relation} /></div>
             <p className="mt-3 text-xs text-slate-500">La prueba y sus indicadores se calculan sobre la versión agrupada cuando se muestra la advertencia de frecuencias bajas.</p>
             <div className="mt-5 grid gap-3 sm:grid-cols-3">
-                <div className="rounded-xl bg-slate-50 p-4"><p className="text-xs text-slate-500">Chi-cuadrada</p><p className="mt-1 font-semibold tabular-nums">{number(relation.chi.chi2)}</p></div>
+                <div className="rounded-xl bg-slate-50 p-4"><p className="text-xs text-slate-500">Índice de relación</p><p className="mt-1 font-semibold tabular-nums">{number(relation.chi.chi2)}</p></div>
                 <div className="rounded-xl bg-slate-50 p-4"><p className="text-xs text-slate-500">V de Cramér</p><p className="mt-1 font-semibold tabular-nums">{number(relation.chi.vCramer)}</p></div>
                 <div className="rounded-xl bg-slate-50 p-4"><p className="text-xs text-slate-500">Estado del contraste</p><p className="mt-1 font-semibold">{status}</p><p className="mt-1 text-xs text-slate-500">{method}</p></div>
             </div>

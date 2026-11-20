@@ -19,6 +19,49 @@ body {
   max-width: 100vw;
 }
 
+/* En el dashboard los resultados y sus notas deben ser visibles sin descubrir acordeones. */
+.dashboard-content details {
+  display: block;
+  margin-top: 1.25rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 1rem;
+  background: #ffffff;
+  padding: 1.25rem;
+  box-shadow: 0 1px 2px rgb(15 23 42 / 0.04);
+}
+
+.dashboard-content details > summary {
+  display: block;
+  cursor: default;
+  list-style: none;
+  color: #0f172a;
+  font-size: 0.95rem;
+  font-weight: 700;
+  line-height: 1.5;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.dashboard-content details > summary::before {
+  content: 'Información importante';
+  display: block;
+  margin-bottom: 0.25rem;
+  color: #0f766e;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.dashboard-content details > summary::-webkit-details-marker {
+  display: none;
+}
+
+.dashboard-content details:not([open]) > :not(summary) {
+  display: block !important;
+}
+
 @layer base {
   button:not(:disabled),
   a[href],

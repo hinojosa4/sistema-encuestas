@@ -54,7 +54,7 @@ export default async function HomePage() {
               </li>
               <li className="flex items-start gap-2">
                 <CheckCircle className="h-4 w-4 text-emerald-600 flex-shrink-0 mt-0.5" />
-                <span>Prueba Chi-cuadrada (Posgrado vs. Financiamiento)</span>
+                <span>Comparación entre posgrado y financiamiento</span>
               </li>
               <li className="flex items-start gap-2">
                 <CheckCircle className="h-4 w-4 text-emerald-600 flex-shrink-0 mt-0.5" />

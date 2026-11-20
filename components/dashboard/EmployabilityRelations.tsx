@@ -5,6 +5,7 @@ import type { EmployabilityRelation, MultivariateProfile } from '@/lib/employabi
 import { percentLabel } from './AnalyticsUI';
 
 const number = (value: number | null) => value === null ? 'Sin datos' : value.toLocaleString('es-BO', { maximumFractionDigits: 1 });
+const statistic = (value: number) => value.toLocaleString('es-BO', { maximumFractionDigits: 3 });
 
 function RelationTable({ relation }: { relation: EmployabilityRelation }) {
     return <div className="overflow-x-auto rounded-xl border border-slate-200">
@@ -44,8 +45,8 @@ export function EmployabilityRelations({ relations, profiles }: { relations: Emp
         if (!relation || relation.chi.total < 2) return 'No hay suficientes respuestas válidas para contrastar esta relación.';
         if (preferredP === null) return 'Algunas celdas tienen pocos casos. Se muestra la relación descriptiva, pero no se presenta una conclusión inferencial.';
         return preferredP < relation.chi.alfa
-            ? 'Se observa evidencia exploratoria de asociación en esta muestra.'
-            : 'No se observa evidencia suficiente de asociación en esta muestra.';
+            ? `Se observa evidencia exploratoria de asociación en esta muestra (p = ${statistic(preferredP)} < α = ${statistic(relation.chi.alfa)}).`
+            : `No se observa evidencia suficiente de asociación en esta muestra porque p = ${statistic(preferredP)} es mayor que α = ${statistic(relation.chi.alfa)}. Esto no demuestra que no exista relación; indica que estos datos no permiten confirmarla con el nivel de significancia elegido.`;
     }, [preferredP, relation]);
 
     if (!relation || !profile) return null;
@@ -67,7 +68,7 @@ export function EmployabilityRelations({ relations, profiles }: { relations: Emp
             <p className="mt-2 text-xs text-slate-500">Base válida: {relation.total} de {relation.total + relation.excluded} respuestas · {relation.excluded} excluidas por falta de una respuesta utilizable.</p>
             <div className="mt-5"><RelationTable relation={relation} /></div>
             <div className="mt-5 grid gap-3 sm:grid-cols-3">
-                <div className="rounded-xl bg-slate-50 p-4"><p className="text-xs text-slate-500">Chi-cuadrada</p><p className="mt-1 font-semibold tabular-nums">{relation.chi.chi2 === null ? 'No disponible' : number(relation.chi.chi2)}</p></div>
+                <div className="rounded-xl bg-slate-50 p-4"><p className="text-xs text-slate-500">Índice de relación</p><p className="mt-1 font-semibold tabular-nums">{relation.chi.chi2 === null ? 'No disponible' : number(relation.chi.chi2)}</p></div>
                 <div className="rounded-xl bg-slate-50 p-4"><p className="text-xs text-slate-500">V de Cramér</p><p className="mt-1 font-semibold tabular-nums">{number(relation.chi.vCramer)}</p></div>
                 <div className="rounded-xl bg-slate-50 p-4"><p className="text-xs text-slate-500">Prueba utilizada</p><p className="mt-1 font-semibold">{preferredP === null ? 'Solo descripción' : relation.chi.estado === 'frecuencias_bajas' ? `Fisher · p ${number(preferredP)}` : `Pearson · p ${number(preferredP)}`}</p></div>
             </div>

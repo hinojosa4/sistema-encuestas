@@ -290,7 +290,7 @@ test('HU4: archivos oficiales, bases conciliadas y exportacion sin textos indivi
   const summary=competencies.resumirCompetencias(g,e);
   assert.equal(summary.totalTitulados,148);
   assert.equal(summary.conExperiencia,147);
-  assert.equal(summary.totalEmpleadores,53);
+  assert.equal(summary.totalEmpleadores,80);
   assert.equal(summary.titulados[0].validas,146);
   assert.equal(summary.titulados[0].media,2.78);
   assert.equal(summary.titulados[2].validas,108);
@@ -323,7 +323,7 @@ test('HU5: matrices de doble entrada concilian y no se exportan respuestas indiv
   const g=p.inspectRows(graduates.rows,graduates.type).rows;
   const e=p.inspectRows(employers.rows,employers.type).rows;
   const report=reports.buildReport(g,e,{scope:'experiencia',corte:4},'2026-10-19T12:00:00.000Z');
-  assert.equal(report.titulados,148); assert.equal(report.empleadores,53);
+  assert.equal(report.titulados,148); assert.equal(report.empleadores,80);
   assert.equal(report.cruce.total,98);
   const observed=report.tablas.find(t=>t.nombre==='HU3_Matriz_observadas');
   assert.deepEqual(observed.columnas,['Nivel cursado','Beca parcial','Beca total','Recursos propios','Total (personas)']);
@@ -369,11 +369,11 @@ test('HU5: informe academico conserva estructura, datos y limitaciones del produ
   assert.deepEqual(UMSS_COLORS,{azul:'#003770',rojo:'#E30613',blanco:'#FFFFFF'});
   const states=model.sections[5].bloques.find(b=>b.tipo==='tabla'&&b.titulo.startsWith('Tabla 13')).filas;
   assert.ok(states.some(r=>r[0]==='Simulación de sistemas'&&r[1]==='Pendiente'));
-  const bytes=await academicReportToPdf(report,{autores:'Equipo de prueba'},fs.readFileSync('public/brand/escudo-umss.jpg'));
+  const bytes=await academicReportToPdf(report,fs.readFileSync('public/brand/escudo-umss.jpg'));
   const doc=await require('pdf-lib').PDFDocument.load(bytes);
   assert.ok(doc.getPageCount()>=9);
-  assert.equal(doc.getAuthor(),'Equipo de prueba');
-  assert.equal(doc.getTitle(),model.titulo);
+  assert.equal(doc.getAuthor(),'Sistema de Encuestas UMSS');
+  assert.equal(doc.getTitle(),'Resultados estadísticos del sistema');
   const empty={...reports.buildReport([],[],{scope:'todos',corte:3}),huella:'b'.repeat(64)};
   assert.ok(!buildAcademicReport(empty).resumen.includes('NaN'));
   await academicReportToPdf(empty);
@@ -411,7 +411,7 @@ test('los dos XLSX oficiales conservan todos los registros y reconocen las colum
     const result = p.inspectRows(b.rows, b.type);
     assert.deepEqual(result.errors, []);
     assert.deepEqual(result.unknownHeaders, []);
-    assert.equal(result.rows.length, b.type === 'encuesta_titulados' ? 148 : 53);
+    assert.equal(result.rows.length, b.type === 'encuesta_titulados' ? 148 : 80);
     assert.equal(read.rows.length, result.rows.length);
     assert.deepEqual(read.errors, []);
     assert.deepEqual(result.rows[0].raw_data, b.rows[0]);
