@@ -1,10 +1,11 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { Download, RefreshCw, FileSpreadsheet, FileText, Database, Layers, CheckCircle2 } from 'lucide-react';
-import { REPORT_VERSION, tableToCsv, type AnalysisReport } from '@/lib/reports';
+import { tableToCsv, type AnalysisReport } from '@/lib/reports';
 import { UserFacingError } from '@/lib/userMessages';
 import { type Row } from '@/lib/importPipeline';
 import { createCleanDatasetWorkbook, cleanRowsToCsv, triggerDownload } from '@/lib/cleanDatasetExport';
+import { cargarReporteEstadistico } from '@/lib/reportes/cargarReporte';
 import { ReportDownloadCards } from './ReportDownloadCards';
 
 function saveFile(content: string | Uint8Array<ArrayBuffer>, mime: string, filename: string) {
@@ -39,15 +40,8 @@ export function TabReports({
         const controller = new AbortController();
         async function load() {
             try {
-                const response = await fetch(`/api/reports?scope=${scope}&corte=${corte}`, {
-                    signal: controller.signal, cache: 'no-store', credentials: 'same-origin',
-                });
-                const data = await response.json();
-                if (!response.ok) throw new UserFacingError(typeof data.error === 'string' ? data.error : 'No se pudo generar el reporte.');
-                if (data.version !== REPORT_VERSION || typeof data.huella !== 'string' || !Array.isArray(data.tablas)) {
-                    throw new UserFacingError('El generador devolvió un reporte incompatible. Actualiza la página y vuelve a intentar.');
-                }
-                if (!controller.signal.aborted) setResult({ key, report: data });
+                const reporte = await cargarReporteEstadistico(scope, corte, controller.signal);
+                if (!controller.signal.aborted) setResult({ key, report: reporte });
             } catch (error) {
                 if (!controller.signal.aborted) setResult({ key, error: error instanceof UserFacingError ? error.message : 'No se pudo conectar con el generador. Comprueba tu conexión y vuelve a intentar.' });
             }
