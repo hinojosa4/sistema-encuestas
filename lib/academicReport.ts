@@ -90,6 +90,7 @@ export function buildAcademicReport(r: AnalysisReport) {
             sub('Percepción de la formación y competencias'),
             table('Tabla 9 Valoración de titulados sobre su formación',['Pregunta','n válido','Media','Mediana','Desv.'],ratings.map(t=>[String(t.pregunta),cellNumber(t.validas),formatAcademicNumber(t.media,2),formatAcademicNumber(t.mediana,2),formatAcademicNumber(t.desviacion_muestral,2)]),'Escala nativa de acuerdo 1 a 4. Desviación muestral solo con al menos dos respuestas. No comparar directamente con la escala 1 a 3 de empleadores.',[0.5,0.12,0.12,0.13,0.13]),
             {tipo:'radar',titulo:'Figura 2 Percepción de empleadores sobre perfil y competencias',grupo:r.radares[0],nota:'Medias nativas de acuerdo 1 a 3, con bases por eje en la tabla. No son una medición separada de cada competencia técnica y transversal.'},
+            {tipo:'radar',titulo:'Figura 3 Vinculación institucional con la UMSS',grupo:r.radares[1],nota:'Medias nativas de acuerdo 1 a 3, con bases por eje en la tabla. Describe la percepción de vinculación institucional y no representa una medición de desempeño.'},
         ]},
         { titulo:'5 Diagnóstico y síntesis de resultados', bloques:[
             sub('Financiamiento de programas cursados'),
